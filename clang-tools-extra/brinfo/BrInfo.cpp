@@ -1,4 +1,4 @@
-//===---- tools/extra/ToolTemplate.cpp - Template for refactoring tool ----===//
+//===---- tools/extra/BrInfo.cpp ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file implements an empty refactoring tool using the clang tooling.
-//  The goal is to lower the "barrier to entry" for writing refactoring tools.
-//
 //  Usage:
-//  tool-template <cmake-output-dir> <file1> <file2> ...
+//  brinfo <cmake-output-dir> <file1> <file2> ...
 //
 //  Where <cmake-output-dir> is a CMake build directory in which a file named
 //  compile_commands.json exists (enable -DCMAKE_EXPORT_COMPILE_COMMANDS in
@@ -25,97 +22,95 @@
 //  removed, but the rest of a relative path must be a suffix of a path in
 //  the compile command line database.
 //
-//  For example, to use tool-template on all files in a subtree of the
+//  For example, to use brinfo on all files in a subtree of the
 //  source tree, use:
 //
 //    /path/in/subtree $ find . -name '*.cpp'|
-//        xargs tool-template /path/to/build
+//        xargs brinfo /path/to/build
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/ASTMatchers/ASTMatchers.h"
-#include "clang/Basic/SourceManager.h"
-#include "clang/Frontend/FrontendActions.h"
-#include "clang/Lex/Lexer.h"
-#include "clang/Tooling/CommonOptionsParser.h"
+// #include "clang/Basic/SourceManager.h"
+#include "clang/Frontend/CompilerInstance.h"
+// #include "clang/Frontend/FrontendActions.h"
+// #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Execution.h"
-#include "clang/Tooling/Refactoring.h"
-#include "clang/Tooling/Refactoring/AtomicChange.h"
-#include "clang/Tooling/Tooling.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/MemoryBuffer.h"
+// #include "clang/Tooling/Tooling.h"
+// #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Signals.h"
 
 using namespace clang;
-using namespace clang::ast_matchers;
 using namespace clang::tooling;
 using namespace llvm;
 
-namespace {
-class ToolTemplateCallback : public MatchFinder::MatchCallback {
-public:
-  ToolTemplateCallback(ExecutionContext &Context) : Context(Context) {}
+namespace BrInfo {
 
-  void run(const MatchFinder::MatchResult &Result) override {
-    // TODO: This routine will get called for each thing that the matchers
-    // find.
-    // At this point, you can examine the match, and do whatever you want,
-    // including replacing the matched text with other text
-    auto *D = Result.Nodes.getNodeAs<NamedDecl>("decl");
-    assert(D);
-    // Use AtomicChange to get a key.
-    if (D->getBeginLoc().isValid()) {
-      AtomicChange Change(*Result.SourceManager, D->getBeginLoc());
-      Context.reportResult(Change.getKey(), D->getQualifiedNameAsString());
+class BrInfoASTConsumer : public ASTConsumer {
+public:
+  BrInfoASTConsumer(ASTContext *Context) {}
+
+  bool isUserSourceCode(const std::string Filename) {
+    if (Filename.empty())
+      return false;
+    if (Filename.find("usr/lib") != std::string::npos)
+      return false;
+    return true;
+  }
+
+  void HandleTranslationUnit(ASTContext &Context) override {
+    auto *TranslationUnitDecl = Context.getTranslationUnitDecl();
+    auto Range = TranslationUnitDecl->decls();
+
+    for (auto *Decl : Range) {
+      std::string Filename =
+          Context.getSourceManager().getFilename(Decl->getLocation()).str();
+
+      if (isUserSourceCode(Filename) && Decl->getKind() == Decl::Function &&
+          Decl->hasBody()) {
+        llvm::outs() << "Decl: " << Decl->getDeclKindName()
+                     << " Name: " << Decl->getAsFunction()->getNameAsString()
+                     << "\n";
+
+        auto CFG =
+            CFG::buildCFG(Decl, Decl->getBody(), &Context, CFG::BuildOptions());
+        CFG->dump(Context.getLangOpts(), /*ShowColors=*/true);
+      }
     }
   }
-
-  void onStartOfTranslationUnit() override {
-    Context.reportResult("START", "Start of TU.");
-  }
-  void onEndOfTranslationUnit() override {
-    Context.reportResult("END", "End of TU.");
-  }
-
-private:
-  ExecutionContext &Context;
 };
-} // end anonymous namespace
+
+class BrInfoAction : public ASTFrontendAction {
+public:
+  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
+                                                 StringRef InFile) override {
+    return std::make_unique<BrInfoASTConsumer>(&CI.getASTContext());
+  }
+};
+
+} // namespace BrInfo
 
 // Set up the command line options
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
-static cl::OptionCategory ToolTemplateCategory("tool-template options");
+static cl::OptionCategory BrInfoCategory("brinfo options");
 
 int main(int argc, const char **argv) {
   llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
 
   auto Executor = clang::tooling::createExecutorFromCommandLineArgs(
-      argc, argv, ToolTemplateCategory);
+      argc, argv, BrInfoCategory);
 
   if (!Executor) {
     llvm::errs() << llvm::toString(Executor.takeError()) << "\n";
     return 1;
   }
 
-  ast_matchers::MatchFinder Finder;
-  ToolTemplateCallback Callback(*Executor->get()->getExecutionContext());
-
-  // TODO: Put your matchers here.
-  // Use Finder.addMatcher(...) to define the patterns in the AST that you
-  // want to match against. You are not limited to just one matcher!
-  //
-  // This is a sample matcher:
-  Finder.addMatcher(
-      namedDecl(cxxRecordDecl(), isExpansionInMainFile()).bind("decl"),
-      &Callback);
-
-  auto Err = Executor->get()->execute(newFrontendActionFactory(&Finder));
+  auto Err = Executor->get()->execute(
+      newFrontendActionFactory<BrInfo::BrInfoAction>());
   if (Err) {
     llvm::errs() << llvm::toString(std::move(Err)) << "\n";
   }
   Executor->get()->getToolResults()->forEachResult(
-      [](llvm::StringRef key, llvm::StringRef value) {
-        llvm::errs() << "----" << key.str() << "\n" << value.str() << "\n";
+      [](llvm::StringRef Key, llvm::StringRef Value) {
+        llvm::errs() << "----" << Key.str() << "\n" << Value.str() << "\n";
       });
 }
