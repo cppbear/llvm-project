@@ -1379,6 +1379,9 @@ public:
   //===--------------------------------------------------------------------===//
 
   void viewCFG(const LangOptions &LO) const;
+  void dumpCFGToDot(const LangOptions &LO, const std::string &DirPath,
+                    const std::string &GraphName,
+                    const std::string &Title) const;
   void print(raw_ostream &OS, const LangOptions &LO, bool ShowColors) const;
   void dump(const LangOptions &LO, bool ShowColors) const;
 

@@ -37,7 +37,9 @@
 #include "clang/Tooling/Execution.h"
 // #include "clang/Tooling/Tooling.h"
 // #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace clang;
 using namespace clang::tooling;
@@ -67,13 +69,14 @@ public:
 
       if (isUserSourceCode(Filename) && Decl->getKind() == Decl::Function &&
           Decl->hasBody()) {
-        llvm::outs() << "Decl: " << Decl->getDeclKindName()
-                     << " Name: " << Decl->getAsFunction()->getNameAsString()
-                     << "\n";
+        // outs() << "Decl: " << Decl->getDeclKindName()
+        //        << " Name: " << Decl->getAsFunction()->getNameAsString() << "\n";
 
-        auto CFG =
+        auto Cfg =
             CFG::buildCFG(Decl, Decl->getBody(), &Context, CFG::BuildOptions());
-        CFG->dump(Context.getLangOpts(), /*ShowColors=*/true);
+        Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
+                          Decl->getAsFunction()->getNameAsString(),
+                          Decl->getAsFunction()->getNameAsString());
       }
     }
   }
@@ -94,23 +97,22 @@ static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::OptionCategory BrInfoCategory("brinfo options");
 
 int main(int argc, const char **argv) {
-  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
+  sys::PrintStackTraceOnErrorSignal(argv[0]);
 
-  auto Executor = clang::tooling::createExecutorFromCommandLineArgs(
-      argc, argv, BrInfoCategory);
+  auto Executor = createExecutorFromCommandLineArgs(argc, argv, BrInfoCategory);
 
   if (!Executor) {
-    llvm::errs() << llvm::toString(Executor.takeError()) << "\n";
+    errs() << toString(Executor.takeError()) << "\n";
     return 1;
   }
 
   auto Err = Executor->get()->execute(
       newFrontendActionFactory<BrInfo::BrInfoAction>());
   if (Err) {
-    llvm::errs() << llvm::toString(std::move(Err)) << "\n";
+    errs() << toString(std::move(Err)) << "\n";
   }
   Executor->get()->getToolResults()->forEachResult(
-      [](llvm::StringRef Key, llvm::StringRef Value) {
-        llvm::errs() << "----" << Key.str() << "\n" << Value.str() << "\n";
+      [](StringRef Key, StringRef Value) {
+        errs() << "----" << Key.str() << "\n" << Value.str() << "\n";
       });
 }

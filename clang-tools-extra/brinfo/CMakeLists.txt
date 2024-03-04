@@ -1,6 +1,6 @@
 set(LLVM_LINK_COMPONENTS
-  FrontendOpenMP
-  Support
+  # FrontendOpenMP
+  # Support
   )
 
 add_clang_executable(brinfo
@@ -9,10 +9,10 @@ add_clang_executable(brinfo
 
 clang_target_link_libraries(brinfo
   PRIVATE
-  clangAST
-  clangASTMatchers
-  clangBasic
+  # clangAST
+  # clangASTMatchers
+  # clangBasic
   clangFrontend
   clangTooling
-  clangToolingRefactoring
+  # clangToolingRefactoring
   )
