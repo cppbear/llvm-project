@@ -39,7 +39,6 @@
 // #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Signals.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace clang;
 using namespace clang::tooling;
