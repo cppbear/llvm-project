@@ -37,7 +37,6 @@
 #include "clang/Tooling/Execution.h"
 // #include "clang/Tooling/Tooling.h"
 // #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Signals.h"
 
 using namespace clang;
