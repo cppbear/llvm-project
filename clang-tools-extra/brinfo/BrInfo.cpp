@@ -37,6 +37,7 @@
 #include "clang/Tooling/Execution.h"
 // #include "clang/Tooling/Tooling.h"
 // #include "llvm/Support/CommandLine.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/Support/Signals.h"
 
 using namespace clang;
@@ -44,6 +45,22 @@ using namespace clang::tooling;
 using namespace llvm;
 
 namespace BrInfo {
+
+// class BrInfoVisitor : public RecursiveASTVisitor<BrInfoVisitor> {
+//   ASTContext *Context;
+
+// public:
+//   explicit BrInfoVisitor(ASTContext *Context) : Context(Context) {}
+
+//   bool VisitFunctionDecl(FunctionDecl *Func) {
+//     if (Func->hasBody()) {
+//       // outs() << "Function: " << Func->getNameAsString() << "\n";
+//       auto Cfg = CFG::buildCFG(Func, Func->getBody(), Context, CFG::BuildOptions());
+//       Cfg->dump(Context.getLangOpts(), true);
+//     }
+//     return true;
+//   }
+// };
 
 class BrInfoASTConsumer : public ASTConsumer {
 public:
