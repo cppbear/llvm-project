@@ -30,14 +30,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// #include "clang/Basic/SourceManager.h"
-#include "clang/Frontend/CompilerInstance.h"
-// #include "clang/Frontend/FrontendActions.h"
-// #include "clang/Tooling/CommonOptionsParser.h"
-#include "clang/Tooling/Execution.h"
-// #include "clang/Tooling/Tooling.h"
-// #include "llvm/Support/CommandLine.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Tooling/Execution.h"
 #include "llvm/Support/Signals.h"
 
 using namespace clang;
@@ -46,25 +41,30 @@ using namespace llvm;
 
 namespace BrInfo {
 
-// class BrInfoVisitor : public RecursiveASTVisitor<BrInfoVisitor> {
-//   ASTContext *Context;
+class BrInfoVisitor : public RecursiveASTVisitor<BrInfoVisitor> {
+  ASTContext &Context;
 
-// public:
-//   explicit BrInfoVisitor(ASTContext *Context) : Context(Context) {}
+public:
+  explicit BrInfoVisitor(ASTContext &Context) : Context(Context) {}
 
-//   bool VisitFunctionDecl(FunctionDecl *Func) {
-//     if (Func->hasBody()) {
-//       // outs() << "Function: " << Func->getNameAsString() << "\n";
-//       auto Cfg = CFG::buildCFG(Func, Func->getBody(), Context, CFG::BuildOptions());
-//       Cfg->dump(Context.getLangOpts(), true);
-//     }
-//     return true;
-//   }
-// };
+  bool VisitFunctionDecl(FunctionDecl *Func) {
+    if (Func->hasBody()) {
+      auto Cfg =
+          CFG::buildCFG(Func, Func->getBody(), &Context, CFG::BuildOptions());
+      Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
+                        Func->getAsFunction()->getNameAsString(),
+                        Func->getAsFunction()->getNameAsString());
+    }
+    return true;
+  }
+};
 
 class BrInfoASTConsumer : public ASTConsumer {
+
+  BrInfoVisitor Visitor;
+
 public:
-  BrInfoASTConsumer(ASTContext *Context) {}
+  BrInfoASTConsumer(ASTContext &Context) : Visitor(Context) {}
 
   bool isUserSourceCode(const std::string Filename) {
     if (Filename.empty())
@@ -84,14 +84,7 @@ public:
 
       if (isUserSourceCode(Filename) && Decl->getKind() == Decl::Function &&
           Decl->hasBody()) {
-        // outs() << "Decl: " << Decl->getDeclKindName()
-        //        << " Name: " << Decl->getAsFunction()->getNameAsString() << "\n";
-
-        auto Cfg =
-            CFG::buildCFG(Decl, Decl->getBody(), &Context, CFG::BuildOptions());
-        Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
-                          Decl->getAsFunction()->getNameAsString(),
-                          Decl->getAsFunction()->getNameAsString());
+        Visitor.TraverseDecl(Decl);
       }
     }
   }
@@ -101,7 +94,7 @@ class BrInfoAction : public ASTFrontendAction {
 public:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override {
-    return std::make_unique<BrInfoASTConsumer>(&CI.getASTContext());
+    return std::make_unique<BrInfoASTConsumer>(CI.getASTContext());
   }
 };
 
@@ -112,22 +105,13 @@ static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::OptionCategory BrInfoCategory("brinfo options");
 
 int main(int argc, const char **argv) {
-  sys::PrintStackTraceOnErrorSignal(argv[0]);
-
-  auto Executor = createExecutorFromCommandLineArgs(argc, argv, BrInfoCategory);
-
-  if (!Executor) {
-    errs() << toString(Executor.takeError()) << "\n";
+  auto ExpectedParser = CommonOptionsParser::create(argc, argv, BrInfoCategory);
+  if (!ExpectedParser) {
+    errs() << ExpectedParser.takeError();
     return 1;
   }
-
-  auto Err = Executor->get()->execute(
-      newFrontendActionFactory<BrInfo::BrInfoAction>());
-  if (Err) {
-    errs() << toString(std::move(Err)) << "\n";
-  }
-  Executor->get()->getToolResults()->forEachResult(
-      [](StringRef Key, StringRef Value) {
-        errs() << "----" << Key.str() << "\n" << Value.str() << "\n";
-      });
+  CommonOptionsParser &OptionParser = ExpectedParser.get();
+  ClangTool Tool(OptionParser.getCompilations(),
+                 OptionParser.getSourcePathList());
+  return Tool.run(newFrontendActionFactory<BrInfo::BrInfoAction>().get());
 }
