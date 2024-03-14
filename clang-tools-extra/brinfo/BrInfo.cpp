@@ -30,6 +30,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Analysis.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/Execution.h"
@@ -51,9 +52,12 @@ public:
     if (Func->hasBody()) {
       auto Cfg =
           CFG::buildCFG(Func, Func->getBody(), &Context, CFG::BuildOptions());
-      Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
-                        Func->getAsFunction()->getNameAsString(),
-                        Func->getAsFunction()->getNameAsString());
+      // Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
+      //                   Func->getAsFunction()->getNameAsString(),
+      //                   Func->getAsFunction()->getNameAsString());
+      Analysis Analysis(Cfg, Context);
+      Analysis.getCondChain();
+      Analysis.dumpCondChain();
     }
     return true;
   }

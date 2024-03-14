@@ -5,6 +5,7 @@ set(LLVM_LINK_COMPONENTS
 
 add_clang_executable(brinfo
   BrInfo.cpp
+  Analysis.cpp
   )
 
 clang_target_link_libraries(brinfo
