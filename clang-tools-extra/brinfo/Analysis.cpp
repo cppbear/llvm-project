@@ -1,12 +1,28 @@
 #include "Analysis.h"
-#include "clang/AST/Stmt.h"
-#include "llvm/Support/raw_ostream.h"
-#include <string>
+#include <cassert>
 
 namespace BrInfo {
 
-// FIXME: Handle back edges in loops
-void Analysis::dfs(CFGBlock Blk, Stmt *Condition, bool Flag) {
+void IfCond::dump(const ASTContext &Context) { Cond->dumpPretty(Context); }
+
+void LoopCond::dump(const ASTContext &Context) { Cond->dumpPretty(Context); }
+
+void CaseCond::dump(const ASTContext &Context) {
+  Cond->dumpPretty(Context);
+  outs() << ": ";
+  Case->dumpPretty(Context);
+}
+
+void DefaultCond::dump(const ASTContext &Context) {
+  Cond->dumpPretty(Context);
+  outs() << ": ";
+  for (auto *Case : Cases) {
+    Case->dumpPretty(Context);
+    outs() << " ";
+  }
+}
+
+void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
   unsigned ID = Blk.getBlockID();
 
   // outs() << "Node: " << ID << " Parent: " << Parent << "\n";
@@ -27,46 +43,83 @@ void Analysis::dfs(CFGBlock Blk, Stmt *Condition, bool Flag) {
     }
   }
 
-  // FIXME: Handle Caces
-  Stmt *Label = Blk.getLabel();
-  if (Label) {
-    // outs() << Label->getStmtClassName() << "\n";
-    // Label->dumpPretty(Context);
-    auto Kind = Label->getStmtClass();
-    if (Kind == Stmt::CaseStmtClass) {
-      CaseStmt *S = cast<CaseStmt>(Label);
-      S->getLHS()->dumpPretty(Context);
-    } else if (Kind == Stmt::DefaultStmtClass) {
-      // DefaultStmt *S = cast<DefaultStmt>(Label);
-      // S->getLHS()->dumpPretty(Context);
-    } else if (Kind == Stmt::CXXCatchStmtClass) {
-    }
-  }
-
   Parent = ID;
   Stmt *Terminator = Blk.getTerminatorStmt();
   if (Terminator) {
-    // FIXME: Handle Switch
-    if (Terminator->getStmtClass() == Stmt::SwitchStmtClass) {
-      errs() << "SwitchStmt\n";
-      Blk.getTerminatorCondition()->dumpPretty(Context);
-      for (auto I : Blk.succs()) {
-        dfs(*I, nullptr, false);
-      }
-    } else if (Blk.succ_size() == 2) {
+    // FIXME: Handle Loop and Try-catch
+    switch (Terminator->getStmtClass()) {
+    default:
+      errs() << "Terminator: " << Terminator->getStmtClassName() << "\n";
+      break;
+    case Stmt::BinaryOperatorClass: {
+      // TODO: Handle && and || operators
+      // whether to combine the conditions or not
+      // break;
+    }
+      LLVM_FALLTHROUGH;
+    case Stmt::IfStmtClass: {
+      BaseCond *Cond = new IfCond(Blk.getTerminatorCondition());
       auto *I = Blk.succ_begin();
-      dfs(**I, Blk.getTerminatorCondition(), true);
+      dfs(**I, Cond, true);
       Parent = ID;
       ++I;
-      dfs(**I, Blk.getTerminatorCondition(), false);
+      dfs(**I, Cond, false);
       Parent = ID;
-    } else {
-      errs() << Terminator->getStmtClassName() << "\n";
+      break;
     }
-  } else if (Blk.succ_size() == 1) {
+    case Stmt::SwitchStmtClass: {
+      CFGBlock *DefaultBlk = nullptr;
+      std::vector<Stmt *> Cases;
+      for (auto I : Blk.succs()) {
+        Stmt *Label = I->getLabel();
+        assert(Label);
+        BaseCond *Cond = nullptr;
+        if (Label->getStmtClass() == Stmt::CaseStmtClass) {
+          Stmt *Case = cast<CaseStmt>(Label)->getLHS();
+          Cases.push_back(Case);
+          Cond = new CaseCond(Blk.getTerminatorCondition(), Case);
+          dfs(*I, Cond, true);
+          Parent = ID;
+        } else {
+          // Default case
+          assert(Label->getStmtClass() == Stmt::DefaultStmtClass);
+          DefaultBlk = I;
+        }
+      }
+      if (DefaultBlk) {
+        BaseCond *Cond = new DefaultCond(Blk.getTerminatorCondition(), Cases);
+        dfs(*DefaultBlk, Cond, false);
+        Parent = ID;
+      }
+      break;
+    }
+    case Stmt::BreakStmtClass:
+      dfs(**Blk.succ_begin(), nullptr, false);
+      Parent = ID;
+      break;
+    case Stmt::ForStmtClass: {
+    }
+      LLVM_FALLTHROUGH;
+    case Stmt::WhileStmtClass: {
+    }
+      LLVM_FALLTHROUGH;
+    case Stmt::DoStmtClass: {
+      BaseCond *Cond = new LoopCond(Blk.getTerminatorCondition());
+      auto *I = Blk.succ_begin();
+      dfs(**I, Cond, true);
+      Parent = ID;
+      ++I;
+      dfs(**I, Cond, false);
+      Parent = ID;
+      break;
+    }
+    }
+  } else if (Blk.succ_size() == 1 && !Blk.getLoopTarget()) {
     dfs(**Blk.succ_begin(), nullptr, false);
     Parent = ID;
-  } else if (!Blk.empty()) {
+  } else if (Blk.getBlockID() != Cfg->getExit().getBlockID()) {
+    // TODO: Handle back edges in loops
+    outs() << "Unhandle Block:\n";
     Blk.dump();
   }
 }
@@ -84,8 +137,8 @@ void Analysis::dumpBlkChain() {
       auto Path = Chain.second;
       for (auto &Cond : CondChain) {
         if (Cond.first) {
-          Cond.first->dumpPretty(Context);
-          outs() << ": " << (Cond.second ? "True" : "False") << " -> ";
+          Cond.first->dump(Context);
+          outs() << ":=" << (Cond.second ? "True" : "False") << " -> ";
         }
       }
       outs() << "\n";
@@ -104,7 +157,7 @@ void Analysis::dumpCondChain() {
     auto Path = Chain.second;
     for (auto &Cond : CondChain) {
       if (Cond.first) {
-        Cond.first->dumpPretty(Context);
+        Cond.first->dump(Context);
         outs() << ": " << (Cond.second ? "True" : "False") << " -> ";
       }
     }

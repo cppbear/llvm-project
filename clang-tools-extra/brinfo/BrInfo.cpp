@@ -50,11 +50,17 @@ public:
 
   bool VisitFunctionDecl(FunctionDecl *Func) {
     if (Func->hasBody()) {
+      auto BO = CFG::BuildOptions();
+      BO.PruneTriviallyFalseEdges = true;
+
       auto Cfg =
-          CFG::buildCFG(Func, Func->getBody(), &Context, CFG::BuildOptions());
+          CFG::buildCFG(Func, Func->getBody(), &Context, BO);
       // Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
       //                   Func->getAsFunction()->getNameAsString(),
       //                   Func->getAsFunction()->getNameAsString());
+      // for (auto *Blk : Cfg->nodes()) {
+      //   Blk->dump();
+      // }
       Analysis Analysis(Cfg, Context);
       Analysis.getCondChain();
       Analysis.dumpCondChain();

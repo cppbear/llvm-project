@@ -2,7 +2,6 @@
 #include "clang/Analysis/CFG.h"
 #include <memory>
 #include <set>
-#include <utility>
 #include <vector>
 
 using namespace clang;
@@ -10,8 +9,54 @@ using namespace llvm;
 
 namespace BrInfo {
 
-using CondChain = std::vector<std::pair<Stmt *, bool>>; // A chain of conditions
-using Path = std::vector<unsigned>;                     // A path of block IDs
+class BaseCond {
+protected:
+  Stmt *Cond;
+
+public:
+  BaseCond(Stmt *Cond) : Cond(Cond) {}
+  virtual ~BaseCond() { Cond = nullptr; }
+  virtual void dump(const ASTContext &Context) = 0;
+};
+
+class IfCond : public BaseCond {
+public:
+  IfCond(Stmt *Cond) : BaseCond(Cond) {}
+  virtual ~IfCond() {}
+  void dump(const ASTContext &Context) override;
+};
+
+class CaseCond : public BaseCond {
+  Stmt *Case;
+
+public:
+  CaseCond(Stmt *Cond, Stmt *Case) : BaseCond(Cond), Case(Case) {}
+  virtual ~CaseCond() { Case = nullptr; }
+  void dump(const ASTContext &Context) override;
+};
+
+class DefaultCond : public BaseCond {
+  std::vector<Stmt *> Cases;
+
+public:
+  DefaultCond(Stmt *Cond, std::vector<Stmt *> Cases)
+      : BaseCond(Cond), Cases(Cases) {}
+  virtual ~DefaultCond() {}
+  void dump(const ASTContext &Context) override;
+};
+
+class LoopCond : public BaseCond {
+public:
+  LoopCond(Stmt *Cond) : BaseCond(Cond) {}
+  virtual ~LoopCond() {}
+  void dump(const ASTContext &Context) override;
+};
+
+class TryCond : public BaseCond {};
+
+using CondChain =
+    std::vector<std::pair<BaseCond *, bool>>; // A chain of conditions
+using Path = std::vector<unsigned>;           // A path of block IDs
 using CondChains = std::set<std::pair<CondChain, Path>>;
 
 class Analysis {
@@ -21,7 +66,7 @@ class Analysis {
   std::vector<CondChains> BlkChain;
   long Parent;
 
-  void dfs(CFGBlock Blk, Stmt *Condition, bool Flag);
+  void dfs(CFGBlock Blk, BaseCond *Condition, bool Flag);
   void dumpBlkChain();
 
 public:
