@@ -34,7 +34,6 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/Execution.h"
-#include "llvm/Support/Signals.h"
 
 using namespace clang;
 using namespace clang::tooling;
@@ -53,8 +52,7 @@ public:
       auto BO = CFG::BuildOptions();
       BO.PruneTriviallyFalseEdges = true;
 
-      auto Cfg =
-          CFG::buildCFG(Func, Func->getBody(), &Context, BO);
+      auto Cfg = CFG::buildCFG(Func, Func->getBody(), &Context, BO);
       // Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
       //                   Func->getAsFunction()->getNameAsString(),
       //                   Func->getAsFunction()->getNameAsString());
