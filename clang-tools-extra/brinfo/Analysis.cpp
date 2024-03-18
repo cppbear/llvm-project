@@ -32,15 +32,13 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
   //   outs() << ": " << (Flag ? "True" : "False") << "\n";
   // }
 
-  if (Parent != -1) {
-    CondChains Chains = BlkChain[Parent];
-    for (auto &Chain : Chains) {
-      auto CondChain = Chain.first;
-      CondChain.push_back({Condition, Flag});
-      auto Path = Chain.second;
-      Path.push_back(ID);
-      BlkChain[ID].insert({CondChain, Path});
-    }
+  if (Parent != -1 && !BlkChain[Parent].empty()) {
+    std::pair<CondChain, Path> Chain = BlkChain[Parent].back();
+    auto CondChain = Chain.first;
+    CondChain.push_back({Condition, Flag});
+    auto Path = Chain.second;
+    Path.push_back(ID);
+    BlkChain[ID].push_back({CondChain, Path});
   }
 
   Parent = ID;
@@ -147,6 +145,25 @@ void Analysis::dumpBlkChain() {
       }
       outs() << "\n";
     }
+  }
+}
+
+void Analysis::dumpBlkChain(unsigned ID) {
+  outs() << "Block: " << ID << "\n";
+  for (auto &Chain : BlkChain[ID]) {
+    auto CondChain = Chain.first;
+    auto Path = Chain.second;
+    for (auto &Cond : CondChain) {
+      if (Cond.first) {
+        Cond.first->dump(Context);
+        outs() << ":=" << (Cond.second ? "True" : "False") << " -> ";
+      }
+    }
+    outs() << "\n";
+    for (auto &ID : Path) {
+      outs() << ID << " ";
+    }
+    outs() << "\n";
   }
 }
 
