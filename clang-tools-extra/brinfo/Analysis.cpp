@@ -169,16 +169,19 @@ void Analysis::dumpBlkChain(unsigned ID) {
 
 void Analysis::dumpCondChain() {
   unsigned ID = Cfg->getExit().getBlockID();
-  for (auto &Chain : BlkChain[ID]) {
-    auto CondChain = Chain.first;
-    auto Path = Chain.second;
+  auto CondChains = BlkChain[ID];
+  unsigned Size = CondChains.size();
+  for (unsigned I = 0; I < Size; ++I) {
+    auto CondChain = CondChains[I].first;
+    auto Path = CondChains[I].second;
+    outs() << "CondChain " << I << ":\n  ";
     for (auto &Cond : CondChain) {
       if (Cond.first) {
         Cond.first->dump(Context);
         outs() << ": " << (Cond.second ? "True" : "False") << " -> ";
       }
     }
-    outs() << "\n";
+    outs() << "\n  ";
     for (auto &ID : Path) {
       outs() << ID << " ";
     }

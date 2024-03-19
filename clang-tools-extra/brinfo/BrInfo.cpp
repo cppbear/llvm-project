@@ -32,6 +32,7 @@
 
 #include "Analysis.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Analysis/CFG.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/Execution.h"
 
@@ -56,8 +57,12 @@ public:
       // Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
       //                   Func->getAsFunction()->getNameAsString(),
       //                   Func->getAsFunction()->getNameAsString());
-      // for (auto *Blk : Cfg->nodes()) {
-      //   Blk->dump();
+      // for (CFGBlock *Blk : Cfg->nodes()) {
+      //   for (CFGElement E : Blk->Elements) {
+      //     if (std::optional<CFGStmt> S = E.getAs<CFGStmt>()) {
+      //       S->getStmt()->dumpColor();
+      //     }
+      //   }
       // }
       Analysis Analysis(Cfg, Context);
       Analysis.getCondChain();
