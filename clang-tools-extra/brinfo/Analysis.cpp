@@ -55,6 +55,7 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
       errs() << "Terminator: " << Terminator->getStmtClassName() << "\n";
       break;
     case Stmt::BinaryOperatorClass: {
+      // deal with shotcut binary operator
       BinaryOperator *BO = cast<BinaryOperator>(Terminator);
       auto OpCode = BO->getOpcode();
       auto *I = Blk.succ_begin();
