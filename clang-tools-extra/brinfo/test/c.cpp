@@ -34,14 +34,14 @@ void ifStatementExample(int x) {
   }
 }
 
-int test(int x) {
+int foo(int x) {
   if ((x > 0 && x < 10) || x < 0) {
     return 1;
   }
   return 0;
 }
 
-int testtest(int x) {
+int bar(int x) {
   if (x > 0 || (x > -10 && x < 0)) {
     return 2;
   }
