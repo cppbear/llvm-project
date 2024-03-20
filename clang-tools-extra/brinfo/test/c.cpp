@@ -25,11 +25,25 @@ bool isOdd(int num) { return num % 2 != 0; }
 void ifStatementExample(int x) {
   if (x > 0 && isEven(x)) {
     std::cout << "x is positive and even" << std::endl;
-  } else if (x > 0 && isOdd(x)) {
+  } else if (0 < x && isOdd(x)) {
     std::cout << "x is positive and odd" << std::endl;
   } else if (x < 0) {
     std::cout << "x is negative" << std::endl;
   } else {
     std::cout << "x is zero" << std::endl;
   }
+}
+
+int test(int x) {
+  if ((x > 0 && x < 10) || x < 0) {
+    return 1;
+  }
+  return 0;
+}
+
+int testtest(int x) {
+  if (x > 0 || (x > -10 && x < 0)) {
+    return 2;
+  }
+  return 0;
 }

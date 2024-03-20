@@ -1,4 +1,9 @@
 #include "Analysis.h"
+#include "clang/AST/Expr.h"
+#include "clang/AST/OperationKinds.h"
+#include "clang/AST/Stmt.h"
+#include "llvm/ADT/FoldingSet.h"
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 
 namespace BrInfo {
@@ -50,11 +55,21 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
       errs() << "Terminator: " << Terminator->getStmtClassName() << "\n";
       break;
     case Stmt::BinaryOperatorClass: {
-      // TODO: Handle && and || operators
-      // whether to combine the conditions or not
-      // break;
+      BinaryOperator *BO = cast<BinaryOperator>(Terminator);
+      auto OpCode = BO->getOpcode();
+      auto *I = Blk.succ_begin();
+      if (OpCode == BinaryOperatorKind::BO_LAnd) {
+        dfs(**I, nullptr, false);
+        Parent = ID;
+      } else if (OpCode == BinaryOperatorKind::BO_LOr) {
+        ++I;
+        dfs(**I, nullptr, false);
+        Parent = ID;
+      } else {
+        errs() << "Unhandled BinaryOperatorKind: " << OpCode << "\n";
+      }
+      break;
     }
-      LLVM_FALLTHROUGH;
     case Stmt::IfStmtClass: {
       BaseCond *Cond = new IfCond(Blk.getTerminatorCondition());
       auto *I = Blk.succ_begin();
