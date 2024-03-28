@@ -56,21 +56,22 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
       break;
     case Stmt::BinaryOperatorClass: {
       // deal with shotcut binary operator
-      BinaryOperator *BO = cast<BinaryOperator>(Terminator);
-      auto OpCode = BO->getOpcode();
-      auto *I = Blk.succ_begin();
-      if (OpCode == BinaryOperatorKind::BO_LAnd) {
-        dfs(**I, nullptr, false);
-        Parent = ID;
-      } else if (OpCode == BinaryOperatorKind::BO_LOr) {
-        ++I;
-        dfs(**I, nullptr, false);
-        Parent = ID;
-      } else {
-        errs() << "Unhandled BinaryOperatorKind: " << OpCode << "\n";
-      }
-      break;
+      // BinaryOperator *BO = cast<BinaryOperator>(Terminator);
+      // auto OpCode = BO->getOpcode();
+      // auto *I = Blk.succ_begin();
+      // if (OpCode == BinaryOperatorKind::BO_LAnd) {
+      //   dfs(**I, nullptr, false);
+      //   Parent = ID;
+      // } else if (OpCode == BinaryOperatorKind::BO_LOr) {
+      //   ++I;
+      //   dfs(**I, nullptr, false);
+      //   Parent = ID;
+      // } else {
+      //   errs() << "Unhandled BinaryOperatorKind: " << OpCode << "\n";
+      // }
+      // break;
     }
+      LLVM_FALLTHROUGH;
     case Stmt::IfStmtClass: {
       BaseCond *Cond = new IfCond(Blk.getTerminatorCondition());
       auto *I = Blk.succ_begin();
