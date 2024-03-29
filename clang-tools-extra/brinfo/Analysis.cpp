@@ -73,7 +73,9 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
     }
       LLVM_FALLTHROUGH;
     case Stmt::IfStmtClass: {
-      BaseCond *Cond = new IfCond(Blk.getTerminatorCondition());
+      BaseCond *Cond = new IfCond(
+          cast<Expr>(Blk.getTerminatorCondition())->IgnoreParenImpCasts());
+      // BaseCond *Cond = new IfCond(Blk.getTerminatorCondition());
       auto *I = Blk.succ_begin();
       dfs(**I, Cond, true);
       Parent = ID;
@@ -92,7 +94,9 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
         if (Label->getStmtClass() == Stmt::CaseStmtClass) {
           Stmt *Case = cast<CaseStmt>(Label)->getLHS();
           Cases.push_back(Case);
-          Cond = new CaseCond(Blk.getTerminatorCondition(), Case);
+          Cond = new CaseCond(
+              cast<Expr>(Blk.getTerminatorCondition())->IgnoreParenImpCasts(),
+              Case);
           dfs(*I, Cond, true);
           Parent = ID;
         } else {
@@ -102,7 +106,9 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
         }
       }
       if (DefaultBlk) {
-        BaseCond *Cond = new DefaultCond(Blk.getTerminatorCondition(), Cases);
+        BaseCond *Cond = new DefaultCond(
+            cast<Expr>(Blk.getTerminatorCondition())->IgnoreParenImpCasts(),
+            Cases);
         dfs(*DefaultBlk, Cond, false);
         Parent = ID;
       }
@@ -119,7 +125,8 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
     }
       LLVM_FALLTHROUGH;
     case Stmt::DoStmtClass: {
-      BaseCond *Cond = new LoopCond(Blk.getTerminatorCondition());
+      BaseCond *Cond = new LoopCond(
+          cast<Expr>(Blk.getTerminatorCondition())->IgnoreParenImpCasts());
       auto *I = Blk.succ_begin();
       dfs(**I, Cond, true);
       Parent = ID;
@@ -188,7 +195,7 @@ void Analysis::dumpCondChain() {
   unsigned ID = Cfg->getExit().getBlockID();
   auto CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
-  for (unsigned I = 37; I < Size; ++I) {
+  for (unsigned I = 0; I < Size; ++I) {
     auto CondChain = CondChains[I].first;
     auto Path = CondChains[I].second;
     outs() << "CondChain " << I << ":\n  ";
@@ -203,7 +210,7 @@ void Analysis::dumpCondChain() {
       outs() << ID << " ";
     }
     outs() << "\n";
-    break;
+    // break;
   }
 }
 
@@ -211,18 +218,14 @@ void Analysis::condDerive() {
   unsigned ID = Cfg->getExit().getBlockID();
   auto &CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
-  for (unsigned I = 37; I < Size; ++I) {
+  for (unsigned I = 0; I < Size; ++I) {
     CondMap.clear();
     auto &CondChain = CondChains[I].first;
-    // auto Path = CondChains[I].second;
     for (auto &Cond : CondChain) {
       if (Cond.first) {
         TmpCond.first = nullptr;
-        // Cond.first->dump(Context);
-        // outs() << ": " << (Cond.second ? "True" : "False") << "\n";
         const Stmt *S = Cond.first->getCond();
         CondMap[S] = Cond.second;
-        // S->dumpColor();
 
         if (S->getStmtClass() == Stmt::BinaryOperatorClass) {
           const BinaryOperator *BO = cast<BinaryOperator>(S);
@@ -231,19 +234,17 @@ void Analysis::condDerive() {
           }
         }
         if (TmpCond.first) {
-          // Cond.first = TmpCond.first;
-          // Cond.second = TmpCond.second;
           Cond = TmpCond;
         }
       }
     }
-    break;
+    // break;
   }
 }
 
 void Analysis::handle(const BinaryOperator *BO, bool Flag) {
-  Expr *LHS = BO->getLHS()->IgnoreParens();
-  Expr *RHS = BO->getRHS()->IgnoreParens();
+  Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
+  Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
   bool LHSKnown = CondMap.find(LHS) != CondMap.end();
   bool RHSKnown = CondMap.find(RHS) != CondMap.end();
   if (LHSKnown && !RHSKnown) {
@@ -268,15 +269,13 @@ void Analysis::topDown(bool Flag, BinaryOperator::Opcode Opcode,
   case BinaryOperatorKind::BO_LAnd:
     if (Val) {
       CondMap[Unknown] = Flag;
-      if (Unknown->getStmtClass() == Stmt::BinaryOperatorClass) {
-        const BinaryOperator *BO = cast<BinaryOperator>(Unknown);
-        if (BO->isLogicalOp()) {
-          handle(BO, Flag);
-        } else {
-          const Stmt *S = static_cast<const Stmt *>(Unknown);
-          BaseCond *Cond = new IfCond(S);
-          TmpCond = {Cond, Flag};
-        }
+      if (Unknown->getStmtClass() == Stmt::BinaryOperatorClass &&
+          cast<BinaryOperator>(Unknown)->isLogicalOp()) {
+        handle(cast<BinaryOperator>(Unknown), Flag);
+      } else {
+        const Stmt *S = static_cast<const Stmt *>(Unknown);
+        BaseCond *Cond = new IfCond(S);
+        TmpCond = {Cond, Flag};
       }
     } else if (Flag) {
       errs() << "Contradictory conditions\n";
@@ -285,15 +284,13 @@ void Analysis::topDown(bool Flag, BinaryOperator::Opcode Opcode,
   case BinaryOperatorKind::BO_LOr:
     if (!Val) {
       CondMap[Unknown] = Flag;
-      if (Unknown->getStmtClass() == Stmt::BinaryOperatorClass) {
-        const BinaryOperator *BO = cast<BinaryOperator>(Unknown);
-        if (BO->isLogicalOp()) {
-          handle(BO, Flag);
-        } else {
-          const Stmt *S = static_cast<const Stmt *>(Unknown);
-          BaseCond *Cond = new IfCond(S);
-          TmpCond = {Cond, Flag};
-        }
+      if (Unknown->getStmtClass() == Stmt::BinaryOperatorClass &&
+          cast<BinaryOperator>(Unknown)->isLogicalOp()) {
+        handle(cast<BinaryOperator>(Unknown), Flag);
+      } else {
+        const Stmt *S = static_cast<const Stmt *>(Unknown);
+        BaseCond *Cond = new IfCond(S);
+        TmpCond = {Cond, Flag};
       }
     } else if (!Flag) {
       errs() << "Contradictory conditions\n";
@@ -310,28 +307,31 @@ bool Analysis::downTop(const Expr *Parent) {
   if (Parent->getStmtClass() == Stmt::BinaryOperatorClass) {
     const BinaryOperator *BO = cast<BinaryOperator>(Parent);
     if (BO->isLogicalOp()) {
-      Expr *LHS = BO->getLHS()->IgnoreParens();
-      Expr *RHS = BO->getRHS()->IgnoreParens();
+      Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
+      Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
       if (CondMap.find(LHS) == CondMap.end()) {
         downTop(LHS);
       }
       if (CondMap.find(RHS) == CondMap.end()) {
         downTop(RHS);
       }
-      // FIXME: 需考虑所有情况包括 true && true 和 false || false
+      bool LHSKnown = CondMap.find(LHS) != CondMap.end();
+      bool RHSKnown = CondMap.find(RHS) != CondMap.end();
       switch (BO->getOpcode()) {
       case BinaryOperatorKind::BO_LAnd:
-        // false && any
-        if ((CondMap.find(LHS) != CondMap.end() && !CondMap[LHS]) ||
-            (CondMap.find(RHS) != CondMap.end() && !CondMap[RHS])) {
+        if (LHSKnown && RHSKnown) {
+          CondMap[Parent] = CondMap[LHS] && CondMap[RHS];
+          Res = true;
+        } else if ((LHSKnown && !CondMap[LHS]) || (RHSKnown && !CondMap[RHS])) {
           CondMap[Parent] = false;
           Res = true;
         }
         break;
       case BinaryOperatorKind::BO_LOr:
-        // true || any
-        if ((CondMap.find(LHS) != CondMap.end() && CondMap[LHS]) ||
-            (CondMap.find(RHS) != CondMap.end() && CondMap[RHS])) {
+        if (LHSKnown && RHSKnown) {
+          CondMap[Parent] = CondMap[LHS] || CondMap[RHS];
+          Res = true;
+        } else if ((LHSKnown && CondMap[LHS]) || (RHSKnown && CondMap[RHS])) {
           CondMap[Parent] = true;
           Res = true;
         }
