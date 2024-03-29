@@ -59,7 +59,7 @@
 
 int testif(int a, int b, int c, int d, int e, int f, int g, int h, int i,
             int j, int k) {
-  if (((a > 10 && b < 5) || (c == 20 && d != 30)) &&
+  if (((((a > 10)) && b < 5) || (c == 20 && d != 30)) &&
           ((e <= 15 || f > 25) && (g == 5 || h != 7)) ||
       (i >= 100 && (j < 50 || k != 60))) {
     return 3;

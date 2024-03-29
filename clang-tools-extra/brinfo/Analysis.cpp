@@ -1,6 +1,6 @@
 #include "Analysis.h"
 #include "clang/AST/Expr.h"
-#include "clang/AST/OperationKinds.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/Stmt.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/Support/raw_ostream.h"
@@ -188,7 +188,7 @@ void Analysis::dumpCondChain() {
   unsigned ID = Cfg->getExit().getBlockID();
   auto CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
-  for (unsigned I = 0; I < Size; ++I) {
+  for (unsigned I = 37; I < Size; ++I) {
     auto CondChain = CondChains[I].first;
     auto Path = CondChains[I].second;
     outs() << "CondChain " << I << ":\n  ";
@@ -203,7 +203,145 @@ void Analysis::dumpCondChain() {
       outs() << ID << " ";
     }
     outs() << "\n";
+    break;
   }
+}
+
+void Analysis::condDerive() {
+  unsigned ID = Cfg->getExit().getBlockID();
+  auto &CondChains = BlkChain[ID];
+  unsigned Size = CondChains.size();
+  for (unsigned I = 37; I < Size; ++I) {
+    CondMap.clear();
+    auto &CondChain = CondChains[I].first;
+    // auto Path = CondChains[I].second;
+    for (auto &Cond : CondChain) {
+      if (Cond.first) {
+        TmpCond.first = nullptr;
+        // Cond.first->dump(Context);
+        // outs() << ": " << (Cond.second ? "True" : "False") << "\n";
+        const Stmt *S = Cond.first->getCond();
+        CondMap[S] = Cond.second;
+        // S->dumpColor();
+
+        if (S->getStmtClass() == Stmt::BinaryOperatorClass) {
+          const BinaryOperator *BO = cast<BinaryOperator>(S);
+          if (BO->isLogicalOp()) {
+            handle(BO, Cond.second);
+          }
+        }
+        if (TmpCond.first) {
+          // Cond.first = TmpCond.first;
+          // Cond.second = TmpCond.second;
+          Cond = TmpCond;
+        }
+      }
+    }
+    break;
+  }
+}
+
+void Analysis::handle(const BinaryOperator *BO, bool Flag) {
+  Expr *LHS = BO->getLHS()->IgnoreParens();
+  Expr *RHS = BO->getRHS()->IgnoreParens();
+  bool LHSKnown = CondMap.find(LHS) != CondMap.end();
+  bool RHSKnown = CondMap.find(RHS) != CondMap.end();
+  if (LHSKnown && !RHSKnown) {
+    topDown(Flag, BO->getOpcode(), LHS, RHS);
+  } else if (!LHSKnown && RHSKnown) {
+    topDown(Flag, BO->getOpcode(), RHS, LHS);
+  } else if (!LHSKnown && !RHSKnown) {
+    bool Res = downTop(LHS) || downTop(RHS);
+    if (Res) {
+      handle(BO, Flag);
+    } else {
+      errs() << "Unhandle condition\n";
+    }
+  }
+}
+
+// derive the condition from the parent to the child
+void Analysis::topDown(bool Flag, BinaryOperator::Opcode Opcode,
+                       const Expr *Known, const Expr *Unknown) {
+  bool Val = CondMap[Known];
+  switch (Opcode) {
+  case BinaryOperatorKind::BO_LAnd:
+    if (Val) {
+      CondMap[Unknown] = Flag;
+      if (Unknown->getStmtClass() == Stmt::BinaryOperatorClass) {
+        const BinaryOperator *BO = cast<BinaryOperator>(Unknown);
+        if (BO->isLogicalOp()) {
+          handle(BO, Flag);
+        } else {
+          const Stmt *S = static_cast<const Stmt *>(Unknown);
+          BaseCond *Cond = new IfCond(S);
+          TmpCond = {Cond, Flag};
+        }
+      }
+    } else if (Flag) {
+      errs() << "Contradictory conditions\n";
+    }
+    break;
+  case BinaryOperatorKind::BO_LOr:
+    if (!Val) {
+      CondMap[Unknown] = Flag;
+      if (Unknown->getStmtClass() == Stmt::BinaryOperatorClass) {
+        const BinaryOperator *BO = cast<BinaryOperator>(Unknown);
+        if (BO->isLogicalOp()) {
+          handle(BO, Flag);
+        } else {
+          const Stmt *S = static_cast<const Stmt *>(Unknown);
+          BaseCond *Cond = new IfCond(S);
+          TmpCond = {Cond, Flag};
+        }
+      }
+    } else if (!Flag) {
+      errs() << "Contradictory conditions\n";
+    }
+    break;
+  default:
+    break;
+  }
+}
+
+// transfer the condition from the children to the parent
+bool Analysis::downTop(const Expr *Parent) {
+  bool Res = false;
+  if (Parent->getStmtClass() == Stmt::BinaryOperatorClass) {
+    const BinaryOperator *BO = cast<BinaryOperator>(Parent);
+    if (BO->isLogicalOp()) {
+      Expr *LHS = BO->getLHS()->IgnoreParens();
+      Expr *RHS = BO->getRHS()->IgnoreParens();
+      if (CondMap.find(LHS) == CondMap.end()) {
+        downTop(LHS);
+      }
+      if (CondMap.find(RHS) == CondMap.end()) {
+        downTop(RHS);
+      }
+      // FIXME: 需考虑所有情况包括 true && true 和 false || false
+      switch (BO->getOpcode()) {
+      case BinaryOperatorKind::BO_LAnd:
+        // false && any
+        if ((CondMap.find(LHS) != CondMap.end() && !CondMap[LHS]) ||
+            (CondMap.find(RHS) != CondMap.end() && !CondMap[RHS])) {
+          CondMap[Parent] = false;
+          Res = true;
+        }
+        break;
+      case BinaryOperatorKind::BO_LOr:
+        // true || any
+        if ((CondMap.find(LHS) != CondMap.end() && CondMap[LHS]) ||
+            (CondMap.find(RHS) != CondMap.end() && CondMap[RHS])) {
+          CondMap[Parent] = true;
+          Res = true;
+        }
+        break;
+      default:
+        break;
+      }
+    }
+  }
+  return Res;
 }
 
 } // namespace BrInfo

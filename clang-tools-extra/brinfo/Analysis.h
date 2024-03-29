@@ -1,5 +1,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Analysis/CFG.h"
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -10,17 +11,18 @@ namespace BrInfo {
 
 class BaseCond {
 protected:
-  Stmt *Cond;
+  const Stmt *Cond;
 
 public:
-  BaseCond(Stmt *Cond) : Cond(Cond) {}
+  BaseCond(const Stmt *Cond) : Cond(Cond) {}
   virtual ~BaseCond() { Cond = nullptr; }
   virtual void dump(const ASTContext &Context) = 0;
+  const Stmt *getCond() { return Cond; }
 };
 
 class IfCond : public BaseCond {
 public:
-  IfCond(Stmt *Cond) : BaseCond(Cond) {}
+  IfCond(const Stmt *Cond) : BaseCond(Cond) {}
   virtual ~IfCond() {}
   void dump(const ASTContext &Context) override;
 };
@@ -64,6 +66,8 @@ class Analysis {
 
   std::vector<CondChains> BlkChain;
   long Parent;
+  std::map<const Stmt *, bool> CondMap;
+  std::pair<BaseCond *, bool> TmpCond;
 
   void dfs(CFGBlock Blk, BaseCond *Condition, bool Flag);
   void dumpBlkChain();
@@ -80,6 +84,11 @@ public:
   ~Analysis() {}
   void getCondChain();
   void dumpCondChain();
+  void condDerive();
+  void handle(const BinaryOperator *BO, bool Flag);
+  void topDown(bool Flag, BinaryOperator::Opcode Opcode, const Expr *Known,
+               const Expr *Unknown);
+  bool downTop(const Expr *Expr);
 };
 
 } // namespace BrInfo

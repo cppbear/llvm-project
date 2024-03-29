@@ -66,6 +66,8 @@ public:
       // }
       Analysis Analysis(Cfg, Context);
       Analysis.getCondChain();
+      // Analysis.dumpCondChain();
+      Analysis.condDerive();
       Analysis.dumpCondChain();
     }
     return true;
