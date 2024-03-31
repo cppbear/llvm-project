@@ -35,10 +35,18 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/Execution.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace clang;
 using namespace clang::tooling;
 using namespace llvm;
+
+// Set up the command line options
+static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
+static cl::OptionCategory BrInfoCategory("brinfo options");
+static cl::opt<std::string>
+    FunctionName("f", cl::desc("Specify the function to analyze"),
+                 cl::value_desc("string"), cl::cat(BrInfoCategory));
 
 namespace BrInfo {
 
@@ -50,25 +58,28 @@ public:
 
   bool VisitFunctionDecl(FunctionDecl *Func) {
     if (Func->hasBody()) {
-      auto BO = CFG::BuildOptions();
-      BO.PruneTriviallyFalseEdges = true;
+      if (!FunctionName.empty() &&
+          Func->getNameAsString().compare(FunctionName.getValue()) == 0) {
+        Func->getSourceRange().dump(Context.getSourceManager());
+        auto BO = CFG::BuildOptions();
+        BO.PruneTriviallyFalseEdges = true;
+        auto Cfg = CFG::buildCFG(Func, Func->getBody(), &Context, BO);
 
-      auto Cfg = CFG::buildCFG(Func, Func->getBody(), &Context, BO);
-      // Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
-      //                   Func->getAsFunction()->getNameAsString(),
-      //                   Func->getAsFunction()->getNameAsString());
-      // for (CFGBlock *Blk : Cfg->nodes()) {
-      //   for (CFGElement E : Blk->Elements) {
-      //     if (std::optional<CFGStmt> S = E.getAs<CFGStmt>()) {
-      //       S->getStmt()->dumpColor();
-      //     }
-      //   }
-      // }
-      Analysis Analysis(Cfg, Context);
-      Analysis.getCondChain();
-      // Analysis.dumpCondChain();
-      Analysis.condDerive();
-      Analysis.dumpCondChain();
+        // Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
+        //                   Func->getNameAsString(), Func->getNameAsString());
+        // for (CFGBlock *Blk : Cfg->nodes()) {
+        //   for (CFGElement E : Blk->Elements) {
+        //     if (std::optional<CFGStmt> S = E.getAs<CFGStmt>()) {
+        //       S->getStmt()->dumpColor();
+        //     }
+        //   }
+        // }
+
+        Analysis Analysis(Cfg, Context);
+        Analysis.getCondChains();
+        Analysis.simplifyConds();
+        Analysis.dumpCondChains();
+      }
     }
     return true;
   }
@@ -77,16 +88,16 @@ public:
 class BrInfoASTConsumer : public ASTConsumer {
 
   BrInfoVisitor Visitor;
+  std::string InFile;
 
 public:
-  BrInfoASTConsumer(ASTContext &Context) : Visitor(Context) {}
+  BrInfoASTConsumer(ASTContext &Context, std::string InFile)
+      : Visitor(Context), InFile(InFile) {}
 
   bool isUserSourceCode(const std::string Filename) {
-    if (Filename.empty())
-      return false;
-    if (Filename.find("usr/lib") != std::string::npos)
-      return false;
-    return true;
+    if (InFile.compare(Filename) == 0)
+      return true;
+    return false;
   }
 
   void HandleTranslationUnit(ASTContext &Context) override {
@@ -97,8 +108,8 @@ public:
       std::string Filename =
           Context.getSourceManager().getFilename(Decl->getLocation()).str();
 
-      if (isUserSourceCode(Filename) && Decl->getKind() == Decl::Function &&
-          Decl->hasBody()) {
+      if (isUserSourceCode(Filename)) {
+        // outs() << "DeclKind: " << Decl->getDeclKindName() << "\n";
         Visitor.TraverseDecl(Decl);
       }
     }
@@ -109,15 +120,13 @@ class BrInfoAction : public ASTFrontendAction {
 public:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override {
-    return std::make_unique<BrInfoASTConsumer>(CI.getASTContext());
+    // outs() << "Processing " << InFile << "\n";
+    return std::make_unique<BrInfoASTConsumer>(CI.getASTContext(),
+                                               InFile.str());
   }
 };
 
 } // namespace BrInfo
-
-// Set up the command line options
-static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
-static cl::OptionCategory BrInfoCategory("brinfo options");
 
 int main(int argc, const char **argv) {
   auto ExpectedParser = CommonOptionsParser::create(argc, argv, BrInfoCategory);

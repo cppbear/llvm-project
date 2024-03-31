@@ -72,6 +72,10 @@ class Analysis {
   void dfs(CFGBlock Blk, BaseCond *Condition, bool Flag);
   void dumpBlkChain();
   void dumpBlkChain(unsigned ID);
+  void simplify(const BinaryOperator *BO, bool Flag);
+  void deriveCond(bool Flag, BinaryOperator::Opcode Opcode, const Expr *Known,
+                  const Expr *Unknown);
+  bool transferCond(const Expr *Expr);
 
 public:
   Analysis(std::unique_ptr<CFG> &CFG, ASTContext &Context)
@@ -82,13 +86,9 @@ public:
         {{{nullptr, false}}, {Cfg->getEntry().getBlockID()}});
   }
   ~Analysis() {}
-  void getCondChain();
-  void dumpCondChain();
-  void condDerive();
-  void handle(const BinaryOperator *BO, bool Flag);
-  void topDown(bool Flag, BinaryOperator::Opcode Opcode, const Expr *Known,
-               const Expr *Unknown);
-  bool downTop(const Expr *Expr);
+  void getCondChains();
+  void dumpCondChains();
+  void simplifyConds();
 };
 
 } // namespace BrInfo
