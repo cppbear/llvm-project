@@ -65,7 +65,7 @@ public:
         BO.PruneTriviallyFalseEdges = true;
         auto Cfg = CFG::buildCFG(Func, Func->getBody(), &Context, BO);
 
-        // Cfg->dumpCFGToDot(Context.getLangOpts(), "../DOT/",
+        // Cfg->dumpCFGToDot(Context.getLangOpts(), "/home/chubei/workspace/DOT/",
         //                   Func->getNameAsString(), Func->getNameAsString());
         // for (CFGBlock *Blk : Cfg->nodes()) {
         //   for (CFGElement E : Blk->Elements) {

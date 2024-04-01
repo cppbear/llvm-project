@@ -18,21 +18,21 @@
 //   } while (k < 5);
 // }
 
-// bool isEven(int num) { return num % 2 == 0; }
+bool isEven(int num) { return num % 2 == 0; }
 
-// bool isOdd(int num) { return num % 2 != 0; }
+bool isOdd(int num) { return num % 2 != 0; }
 
-// void ifStatementExample(int x) {
-//   if (x > 0 && isEven(x)) {
-//     std::cout << "x is positive and even" << std::endl;
-//   } else if (x > 0 && isOdd(x)) {
-//     std::cout << "x is positive and odd" << std::endl;
-//   } else if (x < 0) {
-//     std::cout << "x is negative" << std::endl;
-//   } else {
-//     std::cout << "x is zero" << std::endl;
-//   }
-// }
+void ifStatementExample(int x) {
+  if (x > 0 && isEven(x)) {
+    std::cout << "x is positive and even" << std::endl;
+  } else if (x > 0 && isOdd(x)) {
+    std::cout << "x is positive and odd" << std::endl;
+  } else if (x < 0) {
+    std::cout << "x is negative" << std::endl;
+  } else {
+    std::cout << "x is zero" << std::endl;
+  }
+}
 
 // int foo(int x) {
 //   if ((x > 0 && x < 10) || x < 0) {
@@ -67,13 +67,13 @@
 //   return 0;
 // }
 
-void forStatementExample() {
-  int i = 0;
-  for (;;) {
-    std::cout << "Iteration " << i << std::endl;
-    ++i;
-    if (i == 5) {
-      break;
-    }
-  }
-}
+// void forStatementExample() {
+//   int i = 0;
+//   for (;;) {
+//     std::cout << "Iteration " << i << std::endl;
+//     ++i;
+//     if (i == 5) {
+//       break;
+//     }
+//   }
+// }
