@@ -58,14 +58,15 @@ public:
 
   bool VisitFunctionDecl(FunctionDecl *Func) {
     if (Func->hasBody()) {
-      if (!FunctionName.empty() &&
-          Func->getNameAsString().compare(FunctionName.getValue()) == 0) {
+      if (FunctionName.empty() ||
+          FunctionName.compare(Func->getNameAsString()) == 0) {
         Func->getSourceRange().dump(Context.getSourceManager());
         auto BO = CFG::BuildOptions();
         BO.PruneTriviallyFalseEdges = true;
         auto Cfg = CFG::buildCFG(Func, Func->getBody(), &Context, BO);
 
-        // Cfg->dumpCFGToDot(Context.getLangOpts(), "/home/chubei/workspace/DOT/",
+        // Cfg->dumpCFGToDot(Context.getLangOpts(),
+        // "/home/chubei/workspace/DOT/",
         //                   Func->getNameAsString(), Func->getNameAsString());
         // for (CFGBlock *Blk : Cfg->nodes()) {
         //   for (CFGElement E : Blk->Elements) {
