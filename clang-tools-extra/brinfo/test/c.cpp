@@ -1,79 +1,57 @@
 #include <iostream>
 
-// void loopStatementExample() {
-//   for (int i = 0; i < 5; i++) {
-//     std::cout << "Iteration " << i << std::endl;
-//   }
+class Reader {
+public:
+  using Char = char;
+  using Location = const Char *;
 
-//   int j = 0;
-//   while (j < 5) {
-//     std::cout << "While loop iteration " << j << std::endl;
-//     j++;
-//   }
+  Reader();
 
-//   int k = 0;
-//   do {
-//     std::cout << "Do-while loop iteration " << k << std::endl;
-//     k++;
-//   } while (k < 5);
-// }
+  bool good() const;
 
-// bool isEven(int num) { return num % 2 == 0; }
+private:
 
-// bool isOdd(int num) { return num % 2 != 0; }
+  bool readComment();
+  bool readCStyleComment();
+  bool readCppStyleComment();
 
-// void ifStatementExample(int x) {
-//   if (x > 0 && isEven(x)) {
-//     std::cout << "x is positive and even" << std::endl;
-//   } else if (x > 0 && isOdd(x)) {
-//     std::cout << "x is positive and odd" << std::endl;
-//   } else if (x < 0) {
-//     std::cout << "x is negative" << std::endl;
-//   } else {
-//     std::cout << "x is zero" << std::endl;
-//   }
-// }
+  Char getNextChar();
 
-// int foo(int x) {
-//   if ((x > 0 && x < 10) || x < 0) {
-//     return 1;
-//   }
-//   return 0;
-// }
+  void addComment(Location begin, Location end, int placement);
 
-// int bar(int x) {
-//   if (x > 0 || (x > -10 && x < 0)) {
-//     return 2;
-//   }
-//   return 0;
-// }
+  bool containsNewLine(Location begin, Location end);
 
-void test(bool A, bool B, bool C, bool D) {
-  if (A && B) {
-    std::cout << "A and B\n";
-  }
-  if (C || D) {
-    std::cout << "C or D\n";
-  }
+
+  Location begin_{};
+  Location end_{};
+  Location current_{};
+  Location lastValueEnd_{};
+  bool collectComments_{};
+}; // Reader
+
+char Reader::getNextChar() {
+  return 'a';
 }
 
-// int testif(int a, int b, int c, int d, int e, int f, int g, int h, int i,
-//             int j, int k) {
-//   if (((((a > 10)) && b < 5) || (c == 20 && d != 30)) &&
-//           ((e <= 15 || f > 25) && (g == 5 || h != 7)) ||
-//       (i >= 100 && (j < 50 || k != 60))) {
-//     return 3;
-//   }
-//   return 0;
-// }
+bool Reader::readComment() {
+  Location commentBegin = current_ - 1;
+  Char c = getNextChar();
+  bool successful = false;
+  if (c == '*')
+    successful = readCStyleComment();
+  else if (c == '/')
+    successful = readCppStyleComment();
+  if (!successful)
+    return false;
 
-// void forStatementExample() {
-//   int i = 0;
-//   for (;;) {
-//     std::cout << "Iteration " << i << std::endl;
-//     ++i;
-//     if (i == 5) {
-//       break;
-//     }
-//   }
-// }
+  if (collectComments_) {
+    int placement = 0;
+    if (lastValueEnd_ && !containsNewLine(lastValueEnd_, commentBegin)) {
+      if (c != '*' || !containsNewLine(commentBegin, current_))
+        placement = 1;
+    }
+
+    addComment(commentBegin, current_, placement);
+  }
+  return true;
+}
