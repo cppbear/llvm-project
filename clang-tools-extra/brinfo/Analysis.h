@@ -12,12 +12,31 @@ namespace BrInfo {
 class BaseCond {
 protected:
   const Stmt *Cond;
+  std::vector<const Stmt *> TraceBacks;
 
 public:
   BaseCond(const Stmt *Cond) : Cond(Cond) {}
-  virtual ~BaseCond() { Cond = nullptr; }
+  virtual ~BaseCond() {
+    Cond = nullptr;
+    TraceBacks.clear();
+    TraceBacks.shrink_to_fit();
+  }
   virtual void dump(const ASTContext &Context) = 0;
+  void dumpTraceBack(const ASTContext &Context) {
+    if (!TraceBacks.empty()) {
+      outs() << "where: ";
+      for (const Stmt *TB : TraceBacks) {
+        TB->dumpPretty(Context);
+        outs() << " ";
+      }
+    }
+  }
   const Stmt *getCond() { return Cond; }
+  void addTraceBack(const Stmt *TB) {
+    // FIXME: remove duplicate tracebacks
+    if (TB)
+      TraceBacks.push_back(TB);
+  }
 };
 
 class IfCond : public BaseCond {
@@ -57,7 +76,7 @@ class TryCond : public BaseCond {};
 
 using CondChain =
     std::vector<std::pair<BaseCond *, bool>>; // A chain of conditions
-using Path = std::vector<unsigned>;           // A path of block IDs
+using Path = std::vector<CFGBlock *>;         // A path of basic blocks
 using CondChains = std::vector<std::pair<CondChain, Path>>;
 
 class Analysis {
@@ -69,7 +88,7 @@ class Analysis {
   std::map<const Stmt *, bool> CondMap;
   std::pair<BaseCond *, bool> TmpCond;
 
-  void dfs(CFGBlock Blk, BaseCond *Condition, bool Flag);
+  void dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag);
   void dumpBlkChain();
   void dumpBlkChain(unsigned ID);
   void simplify(const BinaryOperator *BO, bool Flag);
@@ -83,12 +102,15 @@ public:
     BlkChain.resize(Cfg->getNumBlockIDs());
     Parent = -1;
     BlkChain[Cfg->getEntry().getBlockID()].push_back(
-        {{{nullptr, false}}, {Cfg->getEntry().getBlockID()}});
+        {{{nullptr, false}}, {&Cfg->getEntry()}});
   }
   ~Analysis() {}
   void getCondChains();
   void dumpCondChains();
   void simplifyConds();
+  void traceBack();
+  const Stmt *handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
+                                unsigned Loc);
 };
 
 } // namespace BrInfo

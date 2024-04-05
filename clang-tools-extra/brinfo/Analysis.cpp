@@ -1,9 +1,11 @@
 #include "Analysis.h"
 #include "clang/AST/Expr.h"
-#include "clang/AST/ParentMapContext.h"
-#include "clang/AST/Stmt.h"
-#include "llvm/ADT/FoldingSet.h"
+#include "clang/Analysis/CFG.h"
 #include "llvm/Support/raw_ostream.h"
+// #include "clang/AST/ParentMapContext.h"
+// #include "clang/AST/Stmt.h"
+// #include "llvm/ADT/FoldingSet.h"
+// #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 
 namespace BrInfo {
@@ -27,8 +29,8 @@ void DefaultCond::dump(const ASTContext &Context) {
   }
 }
 
-void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
-  unsigned ID = Blk.getBlockID();
+void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
+  unsigned ID = Blk->getBlockID();
 
   // outs() << "Node: " << ID << " Parent: " << Parent << "\n";
   // if (Condition) {
@@ -42,12 +44,12 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
     auto CondChain = Chain.first;
     CondChain.push_back({Condition, Flag});
     auto Path = Chain.second;
-    Path.push_back(ID);
+    Path.push_back(Blk);
     BlkChain[ID].push_back({CondChain, Path});
   }
 
   Parent = ID;
-  Stmt *Terminator = Blk.getTerminatorStmt();
+  Stmt *Terminator = Blk->getTerminatorStmt();
   if (Terminator) {
     // FIXME: Handle Loop and Try-catch
     switch (Terminator->getStmtClass()) {
@@ -58,28 +60,28 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
       LLVM_FALLTHROUGH;
     case Stmt::IfStmtClass: {
       BaseCond *Cond = nullptr;
-      Stmt *InnerCond = Blk.getTerminatorCondition();
+      Stmt *InnerCond = Blk->getTerminatorCondition();
       if (InnerCond) {
         Cond = new IfCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts());
       }
-      auto *I = Blk.succ_begin();
+      auto *I = Blk->succ_begin();
       if (Cond) {
-        dfs(**I, Cond, true);
+        dfs(*I, Cond, true);
         Parent = ID;
         ++I;
-        dfs(**I, Cond, false);
+        dfs(*I, Cond, false);
         Parent = ID;
       } else {
-        dfs(**I, nullptr, false);
+        dfs(*I, nullptr, false);
         Parent = ID;
       }
       break;
     }
     case Stmt::SwitchStmtClass: {
       CFGBlock *DefaultBlk = nullptr;
-      Stmt *InnerCond = Blk.getTerminatorCondition();
+      Stmt *InnerCond = Blk->getTerminatorCondition();
       std::vector<Stmt *> Cases;
-      for (auto I : Blk.succs()) {
+      for (auto I : Blk->succs()) {
         Stmt *Label = I->getLabel();
         assert(Label);
         BaseCond *Cond = nullptr;
@@ -90,7 +92,7 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
             Cond = new CaseCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts(),
                                 Case);
           }
-          dfs(*I, Cond, true);
+          dfs(I, Cond, true);
           Parent = ID;
         } else {
           // Default case
@@ -103,13 +105,13 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
         if (InnerCond) {
           Cond = new DefaultCond(InnerCond, Cases);
         }
-        dfs(*DefaultBlk, Cond, false);
+        dfs(DefaultBlk, Cond, false);
         Parent = ID;
       }
       break;
     }
     case Stmt::BreakStmtClass:
-      dfs(**Blk.succ_begin(), nullptr, false);
+      dfs(*Blk->succ_begin(), nullptr, false);
       Parent = ID;
       break;
     case Stmt::ForStmtClass: {
@@ -120,37 +122,37 @@ void Analysis::dfs(CFGBlock Blk, BaseCond *Condition, bool Flag) {
       LLVM_FALLTHROUGH;
     case Stmt::DoStmtClass: {
       BaseCond *Cond = nullptr;
-      Stmt *InnerCond = Blk.getTerminatorCondition();
+      Stmt *InnerCond = Blk->getTerminatorCondition();
       if (InnerCond) {
         Cond = new LoopCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts());
       }
-      auto *I = Blk.succ_begin();
+      auto *I = Blk->succ_begin();
       if (InnerCond) {
-        dfs(**I, Cond, true);
+        dfs(*I, Cond, true);
         Parent = ID;
         ++I;
-        dfs(**I, Cond, false);
+        dfs(*I, Cond, false);
         Parent = ID;
       } else {
-        dfs(**I, nullptr, false);
+        dfs(*I, nullptr, false);
         Parent = ID;
       }
       break;
     }
     }
-  } else if (Blk.succ_size() == 1 && !Blk.getLoopTarget()) {
-    dfs(**Blk.succ_begin(), nullptr, false);
+  } else if (Blk->succ_size() == 1 && !Blk->getLoopTarget()) {
+    dfs(*Blk->succ_begin(), nullptr, false);
     Parent = ID;
-  } else if (Blk.getBlockID() != Cfg->getExit().getBlockID()) {
+  } else if (Blk->getBlockID() != Cfg->getExit().getBlockID()) {
     // TODO: Handle back edges in loops
     outs() << "Unhandle Block:\n";
-    Blk.dump();
+    Blk->dump();
   }
 }
 
 void Analysis::getCondChains() {
   // outs() << "============================\n";
-  dfs(Cfg->getEntry(), nullptr, false);
+  dfs(&Cfg->getEntry(), nullptr, false);
 }
 
 void Analysis::dumpBlkChain() {
@@ -171,8 +173,8 @@ void Analysis::dumpBlkChain(unsigned ID) {
       }
     }
     outs() << "\n";
-    for (auto &ID : Path) {
-      outs() << ID << " ";
+    for (CFGBlock *Blk : Path) {
+      outs() << Blk->getBlockID() << " ";
     }
     outs() << "\n";
   }
@@ -189,12 +191,14 @@ void Analysis::dumpCondChains() {
     for (auto &Cond : CondChain) {
       if (Cond.first) {
         Cond.first->dump(Context);
-        outs() << ": " << (Cond.second ? "True" : "False") << " -> ";
+        outs() << ": " << (Cond.second ? "True" : "False") << " ";
+        Cond.first->dumpTraceBack(Context);
+        outs() << " -> ";
       }
     }
     outs() << "\n  ";
-    for (auto &ID : Path) {
-      outs() << ID << " ";
+    for (CFGBlock *Blk : Path) {
+      outs() << Blk->getBlockID() << " ";
     }
     outs() << "\n";
     // break;
@@ -329,6 +333,120 @@ bool Analysis::transferCond(const Expr *Parent) {
     }
   }
   return Res;
+}
+
+void Analysis::traceBack() {
+  unsigned ID = Cfg->getExit().getBlockID();
+  auto CondChains = BlkChain[ID];
+  unsigned Size = CondChains.size();
+  for (unsigned I = 0; I < Size; ++I) {
+    auto CondChain = CondChains[I].first;
+    auto Path = CondChains[I].second;
+    outs() << "CondChain " << I << ":\n";
+    unsigned CondNum = CondChain.size();
+    for (unsigned J = 0; J < CondNum; ++J) {
+      std::pair<BaseCond *, bool> &Cond = CondChain[J];
+      if (Cond.first) {
+        const Stmt *S = Cond.first->getCond();
+        // S->dumpColor();
+        switch (S->getStmtClass()) {
+        default:
+          errs() << "traceBack() unhandle: " << S->getStmtClassName() << "\n";
+          // S->dumpColor();
+          break;
+        case Stmt::BinaryOperatorClass: {
+          const BinaryOperator *BO = cast<BinaryOperator>(S);
+          if (BO->isComparisonOp()) {
+            Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
+            Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
+            if (LHS->getStmtClass() == Stmt::DeclRefExprClass) {
+              DeclRefExpr *DRE = cast<DeclRefExpr>(LHS);
+              Cond.first->addTraceBack(handleDeclRefExpr(DRE, Path, J));
+            }
+            if (RHS->getStmtClass() == Stmt::DeclRefExprClass) {
+              DeclRefExpr *DRE = cast<DeclRefExpr>(RHS);
+              Cond.first->addTraceBack(handleDeclRefExpr(DRE, Path, J));
+            }
+          }
+          break;
+        }
+        case Stmt::UnaryOperatorClass: {
+          const UnaryOperator *UO = cast<UnaryOperator>(S);
+          if (UO->isArithmeticOp()) {
+            Expr *SubExpr = UO->getSubExpr()->IgnoreParenImpCasts();
+            if (SubExpr->getStmtClass() == Stmt::DeclRefExprClass) {
+              DeclRefExpr *DRE = cast<DeclRefExpr>(SubExpr);
+              Cond.first->addTraceBack(handleDeclRefExpr(DRE, Path, J));
+            }
+          }
+          break;
+        }
+        }
+      }
+    }
+    break;
+  }
+}
+
+const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
+                                        unsigned Loc) {
+  // outs() << "DeclRefExpr: ";
+  // DeclRef->dumpPretty(Context);
+  // outs() << "\n";
+  bool Found = false;
+  const Stmt *TraceBack = nullptr;
+  for (auto It = Path.rend() - Loc; It != Path.rend() && !Found; ++It) {
+    CFGBlock *Blk = *It;
+    CFGElement *E = Blk->rbegin();
+    if (Blk->getTerminator().isValid()) {
+      E = E + 1;
+    }
+    for (; E != Blk->rend() && !Found; ++E) {
+      if (std::optional<CFGStmt> S = E->getAs<CFGStmt>()) {
+        const Stmt *Stmt = S->getStmt();
+        // Stmt->dumpColor();
+        switch (Stmt->getStmtClass()) {
+        default:
+          errs() << "handleDeclRefExpr() unhandle: " << Stmt->getStmtClassName()
+                 << "\n";
+          // Stmt->dumpColor();
+          break;
+        case Stmt::DeclStmtClass: {
+          const DeclStmt *DS = cast<DeclStmt>(Stmt);
+          for (const Decl *D : DS->decls()) {
+            if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
+              if (VD == DeclRef->getDecl()) {
+                // outs() << "VarDecl:\n";
+                // DS->dumpPretty(Context);
+                Found = true;
+                TraceBack = DS;
+              }
+            }
+          }
+          break;
+        }
+        case Stmt::BinaryOperatorClass: {
+          const BinaryOperator *BO = cast<BinaryOperator>(Stmt);
+          if (BO->isAssignmentOp()) {
+            Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
+            if (LHS->getStmtClass() == Stmt::DeclRefExprClass) {
+              DeclRefExpr *DRE = cast<DeclRefExpr>(LHS);
+              if (DRE->getDecl() == DeclRef->getDecl()) {
+                // outs() << "Assignment:\n";
+                // BO->dumpPretty(Context);
+                // outs() << "\n";
+                Found = true;
+                TraceBack = BO;
+              }
+            }
+          }
+          break;
+        }
+        }
+      }
+    }
+  }
+  return TraceBack;
 }
 
 } // namespace BrInfo
