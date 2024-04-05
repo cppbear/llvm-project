@@ -31,18 +31,24 @@ public:
           Cfg->dumpCFGToDot(Result.Context->getLangOpts(),
                             "/home/chubei/workspace/DOT/",
                             Func->getNameAsString(), Func->getNameAsString());
-        // for (CFGBlock *Blk : Cfg->nodes()) {
-        //   for (CFGElement E : Blk->Elements) {
-        //     if (std::optional<CFGStmt> S = E.getAs<CFGStmt>()) {
-        //       S->getStmt()->dumpColor();
-        //     }
-        //   }
-        // }
+        for (CFGBlock *Blk : Cfg->nodes()) {
+          Blk->dump();
+          for (CFGElement E : Blk->Elements) {
+            E.dump();
+            if (std::optional<CFGStmt> S = E.getAs<CFGStmt>()) {
+              S->getStmt()->dumpColor();
+            }
+          }
+          auto Terminator = Blk->getTerminator();
+          if (Terminator.isValid()) {
+            Terminator.getStmt()->dumpColor();
+          }
+        }
 
-        Analysis Analysis(Cfg, *Result.Context);
-        Analysis.getCondChains();
-        Analysis.simplifyConds();
-        Analysis.dumpCondChains();
+        // Analysis Analysis(Cfg, *Result.Context);
+        // Analysis.getCondChains();
+        // Analysis.simplifyConds();
+        // Analysis.dumpCondChains();
       }
     }
   }
