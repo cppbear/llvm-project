@@ -180,6 +180,16 @@ void Analysis::dumpBlkChain(unsigned ID) {
   }
 }
 
+void Analysis::dumpTraceBack(unsigned CondChain, unsigned Cond) {
+  std::vector<const Stmt *> TraceBack = TraceBacks[CondChain][Cond];
+  if (!TraceBack.empty()) {
+    outs() << "where: ";
+    for (const Stmt *S : TraceBack) {
+      S->dumpPretty(Context);
+    }
+  }
+}
+
 void Analysis::dumpCondChains() {
   unsigned ID = Cfg->getExit().getBlockID();
   auto CondChains = BlkChain[ID];
@@ -188,11 +198,13 @@ void Analysis::dumpCondChains() {
     auto CondChain = CondChains[I].first;
     auto Path = CondChains[I].second;
     outs() << "CondChain " << I << ":\n  ";
-    for (auto &Cond : CondChain) {
+    unsigned CondNum = CondChain.size();
+    for (unsigned J = 0; J < CondNum; ++J) {
+      std::pair<BaseCond *, bool> &Cond = CondChain[J];
       if (Cond.first) {
         Cond.first->dump(Context);
         outs() << ": " << (Cond.second ? "True" : "False") << " ";
-        Cond.first->dumpTraceBack(Context);
+        dumpTraceBack(I, J);
         outs() << " -> ";
       }
     }
@@ -339,11 +351,13 @@ void Analysis::traceBack() {
   unsigned ID = Cfg->getExit().getBlockID();
   auto CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
+  TraceBacks.resize(Size);
   for (unsigned I = 0; I < Size; ++I) {
     auto CondChain = CondChains[I].first;
     auto Path = CondChains[I].second;
     outs() << "CondChain " << I << ":\n";
     unsigned CondNum = CondChain.size();
+    TraceBacks[I].resize(CondNum);
     for (unsigned J = 0; J < CondNum; ++J) {
       std::pair<BaseCond *, bool> &Cond = CondChain[J];
       if (Cond.first) {
@@ -361,11 +375,17 @@ void Analysis::traceBack() {
             Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
             if (LHS->getStmtClass() == Stmt::DeclRefExprClass) {
               DeclRefExpr *DRE = cast<DeclRefExpr>(LHS);
-              Cond.first->addTraceBack(handleDeclRefExpr(DRE, Path, J));
+              const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
+              if (TraceBack) {
+                TraceBacks[I][J].push_back(TraceBack);
+              }
             }
             if (RHS->getStmtClass() == Stmt::DeclRefExprClass) {
               DeclRefExpr *DRE = cast<DeclRefExpr>(RHS);
-              Cond.first->addTraceBack(handleDeclRefExpr(DRE, Path, J));
+              const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
+              if (TraceBack) {
+                TraceBacks[I][J].push_back(TraceBack);
+              }
             }
           }
           break;
@@ -376,7 +396,10 @@ void Analysis::traceBack() {
             Expr *SubExpr = UO->getSubExpr()->IgnoreParenImpCasts();
             if (SubExpr->getStmtClass() == Stmt::DeclRefExprClass) {
               DeclRefExpr *DRE = cast<DeclRefExpr>(SubExpr);
-              Cond.first->addTraceBack(handleDeclRefExpr(DRE, Path, J));
+              const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
+              if (TraceBack) {
+                TraceBacks[I][J].push_back(TraceBack);
+              }
             }
           }
           break;
@@ -384,7 +407,7 @@ void Analysis::traceBack() {
         }
       }
     }
-    break;
+    // break;
   }
 }
 

@@ -12,31 +12,12 @@ namespace BrInfo {
 class BaseCond {
 protected:
   const Stmt *Cond;
-  std::vector<const Stmt *> TraceBacks;
 
 public:
   BaseCond(const Stmt *Cond) : Cond(Cond) {}
-  virtual ~BaseCond() {
-    Cond = nullptr;
-    TraceBacks.clear();
-    TraceBacks.shrink_to_fit();
-  }
+  virtual ~BaseCond() { Cond = nullptr; }
   virtual void dump(const ASTContext &Context) = 0;
-  void dumpTraceBack(const ASTContext &Context) {
-    if (!TraceBacks.empty()) {
-      outs() << "where: ";
-      for (const Stmt *TB : TraceBacks) {
-        TB->dumpPretty(Context);
-        outs() << " ";
-      }
-    }
-  }
   const Stmt *getCond() { return Cond; }
-  void addTraceBack(const Stmt *TB) {
-    // FIXME: remove duplicate tracebacks
-    if (TB)
-      TraceBacks.push_back(TB);
-  }
 };
 
 class IfCond : public BaseCond {
@@ -87,10 +68,12 @@ class Analysis {
   long Parent;
   std::map<const Stmt *, bool> CondMap;
   std::pair<BaseCond *, bool> TmpCond;
+  std::vector<std::vector<std::vector<const Stmt *>>> TraceBacks;
 
   void dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag);
   void dumpBlkChain();
   void dumpBlkChain(unsigned ID);
+  void dumpTraceBack(unsigned CondChain, unsigned Cond);
   void simplify(const BinaryOperator *BO, bool Flag);
   void deriveCond(bool Flag, BinaryOperator::Opcode Opcode, const Expr *Known,
                   const Expr *Unknown);
