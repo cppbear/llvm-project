@@ -49,7 +49,9 @@ public:
         Analysis.getCondChains();
         Analysis.simplifyConds();
         Analysis.traceBack();
-        Analysis.dumpCondChains();
+        // Analysis.dumpCondChains();
+        Analysis.findCallReturn();
+        Analysis.dumpRequirements();
       }
     }
   }

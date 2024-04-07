@@ -2,22 +2,65 @@
 #include "clang/AST/Expr.h"
 #include "clang/Analysis/CFG.h"
 #include "llvm/Support/raw_ostream.h"
-// #include "clang/AST/ParentMapContext.h"
-// #include "clang/AST/Stmt.h"
-// #include "llvm/ADT/FoldingSet.h"
-// #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 
 namespace BrInfo {
 
 void IfCond::dump(const ASTContext &Context) { Cond->dumpPretty(Context); }
 
+void IfCond::setCondStr(const ASTContext &Context) {
+  llvm::raw_string_ostream OS(CondStr);
+  if (Cond->getStmtClass() == Stmt::BinaryOperatorClass &&
+      cast<BinaryOperator>(Cond)->getOpcode() == BinaryOperatorKind::BO_NE) {
+    IsNot = true;
+    Expr *LHS = cast<BinaryOperator>(Cond)->getLHS()->IgnoreParenImpCasts();
+    Expr *RHS = cast<BinaryOperator>(Cond)->getRHS()->IgnoreParenImpCasts();
+    LHS->printPretty(OS, nullptr, Context.getPrintingPolicy());
+    OS << " == ";
+    RHS->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  } else if (Cond->getStmtClass() == Stmt::UnaryOperatorClass &&
+             cast<UnaryOperator>(Cond)->getOpcode() ==
+                 UnaryOperatorKind::UO_LNot) {
+    IsNot = true;
+    Expr *SubExpr =
+        cast<UnaryOperator>(Cond)->getSubExpr()->IgnoreParenImpCasts();
+    SubExpr->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  } else {
+    Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  }
+  rtrim(CondStr);
+}
+
+std::string IfCond::toString(const ASTContext &Context) {
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  rtrim(Str);
+  return Str;
+}
+
 void LoopCond::dump(const ASTContext &Context) { Cond->dumpPretty(Context); }
+
+std::string LoopCond::toString(const ASTContext &Context) {
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  return OS.str();
+}
 
 void CaseCond::dump(const ASTContext &Context) {
   Cond->dumpPretty(Context);
   outs() << ": ";
   Case->dumpPretty(Context);
+}
+
+std::string CaseCond::toString(const ASTContext &Context) {
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  OS << ": ";
+  Case->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  return OS.str();
 }
 
 void DefaultCond::dump(const ASTContext &Context) {
@@ -27,6 +70,18 @@ void DefaultCond::dump(const ASTContext &Context) {
     Case->dumpPretty(Context);
     outs() << " ";
   }
+}
+
+std::string DefaultCond::toString(const ASTContext &Context) {
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  OS << ": ";
+  for (auto *Case : Cases) {
+    Case->printPretty(OS, nullptr, Context.getPrintingPolicy());
+    OS << " ";
+  }
+  return OS.str();
 }
 
 void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
@@ -42,7 +97,7 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
   if (Parent != -1 && !BlkChain[Parent].empty()) {
     std::pair<CondChain, Path> Chain = BlkChain[Parent].back();
     auto CondChain = Chain.first;
-    CondChain.push_back({Condition, Flag});
+    CondChain.push_back({Condition, Flag, {}});
     auto Path = Chain.second;
     Path.push_back(Blk);
     BlkChain[ID].push_back({CondChain, Path});
@@ -62,7 +117,8 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       BaseCond *Cond = nullptr;
       Stmt *InnerCond = Blk->getTerminatorCondition();
       if (InnerCond) {
-        Cond = new IfCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts());
+        Cond =
+            new IfCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts(), Context);
       }
       auto *I = Blk->succ_begin();
       if (Cond) {
@@ -90,7 +146,7 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
           Cases.push_back(Case);
           if (InnerCond) {
             Cond = new CaseCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts(),
-                                Case);
+                                Case, Context);
           }
           dfs(I, Cond, true);
           Parent = ID;
@@ -103,7 +159,7 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       if (DefaultBlk) {
         BaseCond *Cond = nullptr;
         if (InnerCond) {
-          Cond = new DefaultCond(InnerCond, Cases);
+          Cond = new DefaultCond(InnerCond, Cases, Context);
         }
         dfs(DefaultBlk, Cond, false);
         Parent = ID;
@@ -124,7 +180,8 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       BaseCond *Cond = nullptr;
       Stmt *InnerCond = Blk->getTerminatorCondition();
       if (InnerCond) {
-        Cond = new LoopCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts());
+        Cond =
+            new LoopCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts(), Context);
       }
       auto *I = Blk->succ_begin();
       if (InnerCond) {
@@ -167,9 +224,9 @@ void Analysis::dumpBlkChain(unsigned ID) {
     auto CondChain = Chain.first;
     auto Path = Chain.second;
     for (auto &Cond : CondChain) {
-      if (Cond.first) {
-        Cond.first->dump(Context);
-        outs() << ":=" << (Cond.second ? "True" : "False") << " -> ";
+      if (Cond.Condition) {
+        Cond.Condition->dump(Context);
+        outs() << ":=" << (Cond.Flag ? "True" : "False") << " -> ";
       }
     }
     outs() << "\n";
@@ -180,64 +237,127 @@ void Analysis::dumpBlkChain(unsigned ID) {
   }
 }
 
-void Analysis::dumpTraceBack(unsigned CondChain, unsigned Cond) {
-  std::vector<const Stmt *> TraceBack = TraceBacks[CondChain][Cond];
-  if (!TraceBack.empty()) {
-    outs() << "where: ";
-    for (const Stmt *S : TraceBack) {
-      S->dumpPretty(Context);
+// void Analysis::dumpTraceBack(unsigned CondChain, unsigned Cond) {
+//   std::vector<const Stmt *> TraceBack = TraceBacks[CondChain][Cond];
+//   if (!TraceBack.empty()) {
+//     outs() << "where: ";
+//     for (const Stmt *S : TraceBack) {
+//       S->dumpPretty(Context);
+//     }
+//   }
+// }
+
+std::string Analysis::getTraceBackStr(std::vector<const Stmt *> &TraceBacks) {
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  if (!TraceBacks.empty()) {
+    OS << ", where ";
+    for (const Stmt *S : TraceBacks) {
+      S->printPretty(OS, nullptr, Context.getPrintingPolicy());
     }
   }
+  rtrim(Str);
+  return Str;
 }
 
-void Analysis::dumpCondChains() {
+// void Analysis::dumpCondChains() {
+//   unsigned ID = Cfg->getExit().getBlockID();
+//   auto CondChains = BlkChain[ID];
+//   unsigned Size = CondChains.size();
+//   for (unsigned I = 0; I < Size; ++I) {
+//     auto CondChain = CondChains[I].first;
+//     auto Path = CondChains[I].second;
+//     outs() << "CondChain " << I << ":\n  ";
+//     unsigned CondNum = CondChain.size();
+//     for (unsigned J = 0; J < CondNum; ++J) {
+//       CondStatus &Cond = CondChain[J];
+//       if (Cond.Condition) {
+//         Cond.Condition->dump(Context);
+//         outs() << ": " << (Cond.Flag ? "True" : "False") << " ";
+//         dumpTraceBack(I, J);
+//         outs() << " -> ";
+//       }
+//     }
+//     outs() << "\n  ";
+//     for (CFGBlock *Blk : Path) {
+//       outs() << Blk->getBlockID() << " ";
+//     }
+//     outs() << "\n";
+//     // break;
+//   }
+// }
+
+void Analysis::dumpRequirements() {
+  std::string FilePath = "/home/chubei/workspace/utgen/test_requirements.txt";
+  std::error_code EC;
+  llvm::raw_fd_stream OS(FilePath, EC);
+  if (EC) {
+    errs() << "Error: " << EC.message() << "\n";
+    return;
+  }
+
   unsigned ID = Cfg->getExit().getBlockID();
-  auto CondChains = BlkChain[ID];
+  CondChains &CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
   for (unsigned I = 0; I < Size; ++I) {
-    auto CondChain = CondChains[I].first;
-    auto Path = CondChains[I].second;
-    outs() << "CondChain " << I << ":\n  ";
-    unsigned CondNum = CondChain.size();
-    for (unsigned J = 0; J < CondNum; ++J) {
-      std::pair<BaseCond *, bool> &Cond = CondChain[J];
-      if (Cond.first) {
-        Cond.first->dump(Context);
-        outs() << ": " << (Cond.second ? "True" : "False") << " ";
-        dumpTraceBack(I, J);
-        outs() << " -> ";
+    if (ContraChains.find(I) == ContraChains.end()) {
+      auto &CondChain = CondChains[I].first;
+      // auto &Path = CondChains[I].second;
+      OS << "CondChain " << I << ":\n";
+      unsigned CondNum = CondChain.size();
+      for (unsigned J = 0; J < CondNum; ++J) {
+        CondStatus &Cond = CondChain[J];
+        if (Cond.Condition) {
+          OS << "// Precondition: " << Cond.Condition->getCondStr() << " is ";
+          if (Cond.Condition->isNot())
+            OS << (Cond.Flag ? "False" : "True");
+          else
+            OS << (Cond.Flag ? "True" : "False");
+          OS << getTraceBackStr(Cond.TraceBacks) << "\n";
+        }
+      }
+      if (!CallReturns[I].empty()) {
+        OS << "// Create a mock class\n";
+        for (auto &CallReturn : CallReturns[I]) {
+          OS << "// Mock ";
+          CallReturn.first->printPretty(OS, nullptr,
+                                        Context.getPrintingPolicy());
+          OS << ", which makes ";
+          for (auto &Return : CallReturn.second) {
+            OS << Return.first << " is ";
+            OS << (Return.second ? "True" : "False") << ", ";
+          }
+          OS << "\n";
+        }
       }
     }
-    outs() << "\n  ";
-    for (CFGBlock *Blk : Path) {
-      outs() << Blk->getBlockID() << " ";
-    }
-    outs() << "\n";
+    // OS << "\n";
     // break;
   }
 }
 
 void Analysis::simplifyConds() {
   unsigned ID = Cfg->getExit().getBlockID();
-  auto &CondChains = BlkChain[ID];
+  CondChains &CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
   for (unsigned I = 0; I < Size; ++I) {
     CondMap.clear();
     auto &CondChain = CondChains[I].first;
     for (auto &Cond : CondChain) {
-      if (Cond.first) {
+      if (Cond.Condition) {
         TmpCond.first = nullptr;
-        const Stmt *S = Cond.first->getCond();
-        CondMap[S] = Cond.second;
+        const Stmt *S = Cond.Condition->getCond();
+        CondMap[S] = Cond.Flag;
 
         if (S->getStmtClass() == Stmt::BinaryOperatorClass) {
           const BinaryOperator *BO = cast<BinaryOperator>(S);
           if (BO->isLogicalOp()) {
-            simplify(BO, Cond.second);
+            simplify(BO, Cond.Flag);
           }
         }
         if (TmpCond.first) {
-          Cond = TmpCond;
+          Cond.Condition = TmpCond.first;
+          Cond.Flag = TmpCond.second;
         }
       }
     }
@@ -277,7 +397,7 @@ void Analysis::deriveCond(bool Flag, BinaryOperator::Opcode Opcode,
         simplify(cast<BinaryOperator>(Unknown), Flag);
       } else {
         const Stmt *S = static_cast<const Stmt *>(Unknown);
-        BaseCond *Cond = new IfCond(S);
+        BaseCond *Cond = new IfCond(S, Context);
         TmpCond = {Cond, Flag};
       }
     } else if (Flag) {
@@ -292,7 +412,7 @@ void Analysis::deriveCond(bool Flag, BinaryOperator::Opcode Opcode,
         simplify(cast<BinaryOperator>(Unknown), Flag);
       } else {
         const Stmt *S = static_cast<const Stmt *>(Unknown);
-        BaseCond *Cond = new IfCond(S);
+        BaseCond *Cond = new IfCond(S, Context);
         TmpCond = {Cond, Flag};
       }
     } else if (!Flag) {
@@ -349,24 +469,22 @@ bool Analysis::transferCond(const Expr *Parent) {
 
 void Analysis::traceBack() {
   unsigned ID = Cfg->getExit().getBlockID();
-  auto CondChains = BlkChain[ID];
+  CondChains &CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
-  TraceBacks.resize(Size);
   for (unsigned I = 0; I < Size; ++I) {
-    auto CondChain = CondChains[I].first;
-    auto Path = CondChains[I].second;
-    outs() << "CondChain " << I << ":\n";
+    auto &CondChain = CondChains[I].first;
+    auto &Path = CondChains[I].second;
+    // outs() << "CondChain " << I << ":\n";
     unsigned CondNum = CondChain.size();
-    TraceBacks[I].resize(CondNum);
     for (unsigned J = 0; J < CondNum; ++J) {
-      std::pair<BaseCond *, bool> &Cond = CondChain[J];
-      if (Cond.first) {
-        const Stmt *S = Cond.first->getCond();
+      CondStatus &Cond = CondChain[J];
+      if (Cond.Condition) {
+        const Stmt *S = Cond.Condition->getCond();
         // S->dumpColor();
         switch (S->getStmtClass()) {
         default:
-          errs() << "traceBack() unhandle: " << S->getStmtClassName() << "\n";
-          // S->dumpColor();
+          // errs() << "traceBack() unhandle: " << S->getStmtClassName() <<
+          // "\n"; S->dumpColor();
           break;
         case Stmt::BinaryOperatorClass: {
           const BinaryOperator *BO = cast<BinaryOperator>(S);
@@ -377,14 +495,14 @@ void Analysis::traceBack() {
               DeclRefExpr *DRE = cast<DeclRefExpr>(LHS);
               const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
               if (TraceBack) {
-                TraceBacks[I][J].push_back(TraceBack);
+                Cond.TraceBacks.push_back(TraceBack);
               }
             }
             if (RHS->getStmtClass() == Stmt::DeclRefExprClass) {
               DeclRefExpr *DRE = cast<DeclRefExpr>(RHS);
               const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
               if (TraceBack) {
-                TraceBacks[I][J].push_back(TraceBack);
+                Cond.TraceBacks.push_back(TraceBack);
               }
             }
           }
@@ -398,7 +516,7 @@ void Analysis::traceBack() {
               DeclRefExpr *DRE = cast<DeclRefExpr>(SubExpr);
               const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
               if (TraceBack) {
-                TraceBacks[I][J].push_back(TraceBack);
+                Cond.TraceBacks.push_back(TraceBack);
               }
             }
           }
@@ -430,10 +548,20 @@ const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
         // Stmt->dumpColor();
         switch (Stmt->getStmtClass()) {
         default:
-          errs() << "handleDeclRefExpr() unhandle: " << Stmt->getStmtClassName()
-                 << "\n";
+          // errs() << "handleDeclRefExpr() unhandle: " <<
+          // Stmt->getStmtClassName()
+          //        << "\n";
           // Stmt->dumpColor();
           break;
+        case Stmt::CallExprClass: {
+          // const CallExpr *CE = cast<CallExpr>(S);
+          errs() << "handleDeclRefExpr() unhandle: CallExpr\n";
+          break;
+        }
+        case Stmt::CXXMemberCallExprClass: {
+          errs() << "handleDeclRefExpr() unhandle: CXXMemberCallExpr\n";
+          break;
+        }
         case Stmt::DeclStmtClass: {
           const DeclStmt *DS = cast<DeclStmt>(Stmt);
           for (const Decl *D : DS->decls()) {
@@ -470,6 +598,116 @@ const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
     }
   }
   return TraceBack;
+}
+
+void Analysis::findCallReturn() {
+  unsigned ID = Cfg->getExit().getBlockID();
+  CondChains &CondChains = BlkChain[ID];
+  unsigned Size = CondChains.size();
+  CallReturns.resize(Size);
+  for (unsigned I = 0; I < Size; ++I) {
+    CallReturnInfo &Info = CallReturns[I];
+    auto &CondChain = CondChains[I].first;
+    // auto &Path = CondChains[I].second;
+    // outs() << "CondChain " << I << ":\n";
+    unsigned CondNum = CondChain.size();
+    for (unsigned J = 0; J < CondNum; ++J) {
+      CondStatus &Cond = CondChain[J];
+      if (Cond.Condition) {
+        const Stmt *S = Cond.Condition->getCond();
+        // S->dumpColor();
+        switch (S->getStmtClass()) {
+        default:
+          // errs() << "traceBack() unhandle: " << S->getStmtClassName() <<
+          // "\n"; S->dumpColor();
+          break;
+        case Stmt::CXXMemberCallExprClass: {
+          // errs() << "traceBack() unhandle: CXXMemberCallExpr\n";
+          // break;
+        }
+          LLVM_FALLTHROUGH;
+        case Stmt::CallExprClass: {
+          // errs() << "traceBack() unhandle: CallExpr\n";
+          // const CallExpr *CE = cast<CallExpr>(S);
+          bool Flag = Cond.Flag;
+          if (Cond.Condition->isNot())
+            Flag = !Flag;
+          if (Info.find(S) == Info.end()) {
+            Info[S][Cond.Condition->getCondStr()] = Flag;
+          } else if (Info[S].find(Cond.Condition->getCondStr()) ==
+                     Info[S].end()) {
+            Info[S][Cond.Condition->getCondStr()] = Flag;
+          } else if (Info[S][Cond.Condition->getCondStr()] != Flag) {
+            errs() << "Contradictory conditions\n";
+            ContraChains.insert(I);
+          }
+          break;
+        }
+        }
+        for (const Stmt *S : Cond.TraceBacks) {
+          // S->dumpColor();
+          switch (S->getStmtClass()) {
+          default:
+            // errs() << "traceBack() unhandle: " << S->getStmtClassName() <<
+            // "\n"; S->dumpColor();
+            break;
+          case Stmt::DeclStmtClass: {
+            const DeclStmt *DS = cast<DeclStmt>(S);
+            for (const Decl *D : DS->decls()) {
+              if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
+                const Expr *Init = VD->getInit();
+                if (Init) {
+                  // auto Cond = CondChains[I].first[J];
+                  if (Init->getStmtClass() == Stmt::CXXMemberCallExprClass ||
+                      Init->getStmtClass() == Stmt::CallExprClass) {
+                    bool Flag = Cond.Flag;
+                    if (Cond.Condition->isNot())
+                      Flag = !Flag;
+                    if (Info.find(Init) == Info.end()) {
+                      Info[Init][Cond.Condition->getCondStr()] = Flag;
+                    } else if (Info[Init].find(Cond.Condition->getCondStr()) ==
+                               Info[Init].end()) {
+                      Info[Init][Cond.Condition->getCondStr()] = Flag;
+                    } else if (Info[Init][Cond.Condition->getCondStr()] !=
+                               Flag) {
+                      errs() << "Contradictory conditions\n";
+                      ContraChains.insert(I);
+                    }
+                  }
+                }
+              }
+            }
+            break;
+          }
+          case Stmt::BinaryOperatorClass: {
+            const BinaryOperator *BO = cast<BinaryOperator>(S);
+            if (BO->isAssignmentOp()) {
+              // Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
+              Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
+              if (RHS->getStmtClass() == Stmt::CXXMemberCallExprClass ||
+                  RHS->getStmtClass() == Stmt::CallExprClass) {
+                bool Flag = Cond.Flag;
+                if (Cond.Condition->isNot())
+                  Flag = !Flag;
+                if (Info.find(RHS) == Info.end()) {
+                  Info[RHS][Cond.Condition->getCondStr()] = Flag;
+                } else if (Info[RHS].find(Cond.Condition->getCondStr()) ==
+                           Info[RHS].end()) {
+                  Info[RHS][Cond.Condition->getCondStr()] = Flag;
+                } else if (Info[RHS][Cond.Condition->getCondStr()] != Flag) {
+                  errs() << "Contradictory conditions\n";
+                  ContraChains.insert(I);
+                }
+              }
+            }
+            break;
+          }
+          }
+        }
+      }
+    }
+    // break;
+  }
 }
 
 } // namespace BrInfo
