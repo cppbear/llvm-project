@@ -239,7 +239,8 @@ void Analysis::dumpRequirements() {
         }
       }
       if (!CallReturns[I].empty()) {
-        OS << "// Create a mock class\n";
+        // TODO: get class name
+        OS << "// Create a class MockReader\n";
         for (auto &CallReturn : CallReturns[I]) {
           OS << "// Mock ";
           CallReturn.first->printPretty(OS, nullptr,
