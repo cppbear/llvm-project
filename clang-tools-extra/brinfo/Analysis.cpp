@@ -405,7 +405,22 @@ void Analysis::traceBack() {
           for (const DeclRefExpr *DRE : Cond.Condition->getDeclRefExprList()) {
             const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
             if (TraceBack) {
-              Cond.TraceBacks.push_back(TraceBack);
+              // outs() << "Condition:\n";
+              // Cond.Condition->getCond()->dumpColor();
+              // outs() << "Value: " << (Cond.Flag ? "True" : "False") << "\n";
+              // outs() << "DeclRef:\n";
+              // DRE->dumpColor();
+              outs() << "TraceBack:\n";
+              TraceBack->dumpColor();
+              bool Exam = examineTraceBack(DRE, TraceBack,
+                                           Cond.Condition->isNot(), Cond.Flag);
+              // outs() << "Exam: " << Exam << "\n";
+              if (Exam)
+                Cond.TraceBacks.push_back(TraceBack);
+              else {
+                errs() << "Contradictory conditions\n";
+                ContraChains.insert(I);
+              };
             }
           }
         }
@@ -415,6 +430,65 @@ void Analysis::traceBack() {
   }
 }
 
+bool Analysis::checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag) {
+  bool Res = true;
+  switch (Expr->getStmtClass()) {
+  default:
+    break;
+  case Stmt::CXXBoolLiteralExprClass: {
+    const CXXBoolLiteralExpr *BLE = cast<CXXBoolLiteralExpr>(Expr);
+    if (IsNot) {
+      if (Flag == BLE->getValue()) {
+        Res = false;
+      }
+    } else {
+      if (Flag != BLE->getValue()) {
+        Res = false;
+      }
+    }
+    break;
+  }
+  }
+  return Res;
+}
+
+bool Analysis::examineTraceBack(const DeclRefExpr *DeclRef,
+                                const Stmt *TraceBack, bool IsNot, bool Flag) {
+  bool Res = true;
+  switch (TraceBack->getStmtClass()) {
+  default:
+    break;
+  case Stmt::DeclStmtClass: {
+    const DeclStmt *DS = cast<DeclStmt>(TraceBack);
+    for (const Decl *D : DS->decls()) {
+      if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
+        if (VD == DeclRef->getDecl()) {
+          Res = checkLiteralExpr(VD->getInit()->IgnoreParenImpCasts(), IsNot,
+                                 Flag);
+        }
+      }
+    }
+    break;
+  }
+  case Stmt::BinaryOperatorClass: {
+    const BinaryOperator *BO = cast<BinaryOperator>(TraceBack);
+    if (BO->isAssignmentOp()) {
+      Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
+      if (LHS->getStmtClass() == Stmt::DeclRefExprClass) {
+        DeclRefExpr *DRE = cast<DeclRefExpr>(LHS);
+        if (DRE->getDecl() == DeclRef->getDecl()) {
+          Res = checkLiteralExpr(BO->getRHS()->IgnoreParenImpCasts(), IsNot,
+                                 Flag);
+        }
+      }
+    }
+    break;
+  }
+  }
+  return Res;
+}
+
+// FIXME: handle ParmVar, consider change CallReturnInfo and CallReturns
 const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
                                         unsigned Loc) {
   // outs() << "DeclRefExpr: ";
@@ -422,6 +496,9 @@ const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
   // outs() << "\n";
   bool Found = false;
   const Stmt *TraceBack = nullptr;
+  // if (DeclRef->getDecl()->getKind() == Decl::Kind::ParmVar) {
+  //   return TraceBack;
+  // }
   for (auto It = Path.rend() - Loc; It != Path.rend() && !Found; ++It) {
     CFGBlock *Blk = *It;
     CFGElement *E = Blk->rbegin();
@@ -434,20 +511,18 @@ const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
         // Stmt->dumpColor();
         switch (Stmt->getStmtClass()) {
         default:
-          // errs() << "handleDeclRefExpr() unhandle: " <<
-          // Stmt->getStmtClassName()
+          // errs() << "handleDeclRefExpr() unhandle: " << Stmt->getStmtClassName()
           //        << "\n";
           // Stmt->dumpColor();
           break;
-        case Stmt::CallExprClass: {
-          // const CallExpr *CE = cast<CallExpr>(S);
-          errs() << "handleDeclRefExpr() unhandle: CallExpr\n";
-          break;
-        }
-        case Stmt::CXXMemberCallExprClass: {
-          errs() << "handleDeclRefExpr() unhandle: CXXMemberCallExpr\n";
-          break;
-        }
+        // case Stmt::CallExprClass: {
+        //   errs() << "handleDeclRefExpr() unhandle: CallExpr\n";
+        //   break;
+        // }
+        // case Stmt::CXXMemberCallExprClass: {
+        //   errs() << "handleDeclRefExpr() unhandle: CXXMemberCallExpr\n";
+        //   break;
+        // }
         case Stmt::DeclStmtClass: {
           const DeclStmt *DS = cast<DeclStmt>(Stmt);
           for (const Decl *D : DS->decls()) {
@@ -533,7 +608,7 @@ void Analysis::findCallReturn() {
             const DeclStmt *DS = cast<DeclStmt>(S);
             for (const Decl *D : DS->decls()) {
               if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
-                const Expr *Init = VD->getInit();
+                const Expr *Init = VD->getInit()->IgnoreParenImpCasts();
                 if (Init) {
                   // auto Cond = CondChains[I].first[J];
                   if (Init->getStmtClass() == Stmt::CXXMemberCallExprClass ||

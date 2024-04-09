@@ -1,6 +1,5 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Expr.h"
-#include "clang/AST/Stmt.h"
 #include "clang/Analysis/CFG.h"
 #include <string>
 #include <vector>

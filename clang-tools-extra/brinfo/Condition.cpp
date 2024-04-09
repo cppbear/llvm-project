@@ -8,12 +8,16 @@ void BaseCond::findDeclRefExpr(const Stmt *S) {
     break;
   case Stmt::DeclRefExprClass: {
     const DeclRefExpr *DeclRef = cast<DeclRefExpr>(S);
-    if (DeclRef->getDecl()->getKind() == Decl::Kind::Var) {
+    Decl::Kind Kind = DeclRef->getDecl()->getKind();
+    if (Kind == Decl::Kind::Var) {
       const VarDecl *Var = cast<VarDecl>(DeclRef->getDecl());
-      if (Var->hasLocalStorage()) {
+      if (Var->isLocalVarDecl()) {
         DeclRefExprList.push_back(DeclRef);
         ContainDeclRefExpr = true;
       }
+    } else if (Kind == Decl::Kind::ParmVar) {
+      DeclRefExprList.push_back(DeclRef);
+      ContainDeclRefExpr = true;
     }
     break;
   }

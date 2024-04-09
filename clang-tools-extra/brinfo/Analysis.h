@@ -19,7 +19,8 @@ class Analysis {
   using CondChain = std::vector<CondStatus>; // A chain of conditions
   using Path = std::vector<CFGBlock *>;      // A path of basic blocks
   using CondChains = std::vector<std::pair<CondChain, Path>>;
-  using CallReturnInfo = std::map<const CallExpr *, std::map<std::string, bool>>;
+  using CallReturnInfo =
+      std::map<const CallExpr *, std::map<std::string, bool>>;
 
   std::unique_ptr<CFG> &Cfg;
   ASTContext &Context;
@@ -56,6 +57,9 @@ public:
   // void dumpCondChains();
   void simplifyConds();
   void traceBack();
+  bool checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag);
+  bool examineTraceBack(const DeclRefExpr *DeclRef, const Stmt *TraceBack,
+                        bool IsNot, bool Flag);
   const Stmt *handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
                                 unsigned Loc);
   void dumpRequirements();
