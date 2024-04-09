@@ -6,84 +6,6 @@
 
 namespace BrInfo {
 
-void IfCond::dump(const ASTContext &Context) { Cond->dumpPretty(Context); }
-
-void IfCond::setCondStr(const ASTContext &Context) {
-  llvm::raw_string_ostream OS(CondStr);
-  if (Cond->getStmtClass() == Stmt::BinaryOperatorClass &&
-      cast<BinaryOperator>(Cond)->getOpcode() == BinaryOperatorKind::BO_NE) {
-    IsNot = true;
-    Expr *LHS = cast<BinaryOperator>(Cond)->getLHS()->IgnoreParenImpCasts();
-    Expr *RHS = cast<BinaryOperator>(Cond)->getRHS()->IgnoreParenImpCasts();
-    LHS->printPretty(OS, nullptr, Context.getPrintingPolicy());
-    OS << " == ";
-    RHS->printPretty(OS, nullptr, Context.getPrintingPolicy());
-  } else if (Cond->getStmtClass() == Stmt::UnaryOperatorClass &&
-             cast<UnaryOperator>(Cond)->getOpcode() ==
-                 UnaryOperatorKind::UO_LNot) {
-    IsNot = true;
-    Expr *SubExpr =
-        cast<UnaryOperator>(Cond)->getSubExpr()->IgnoreParenImpCasts();
-    SubExpr->printPretty(OS, nullptr, Context.getPrintingPolicy());
-  } else {
-    Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
-  }
-  rtrim(CondStr);
-}
-
-std::string IfCond::toString(const ASTContext &Context) {
-  std::string Str;
-  llvm::raw_string_ostream OS(Str);
-  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
-  rtrim(Str);
-  return Str;
-}
-
-void LoopCond::dump(const ASTContext &Context) { Cond->dumpPretty(Context); }
-
-std::string LoopCond::toString(const ASTContext &Context) {
-  std::string Str;
-  llvm::raw_string_ostream OS(Str);
-  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
-  return OS.str();
-}
-
-void CaseCond::dump(const ASTContext &Context) {
-  Cond->dumpPretty(Context);
-  outs() << ": ";
-  Case->dumpPretty(Context);
-}
-
-std::string CaseCond::toString(const ASTContext &Context) {
-  std::string Str;
-  llvm::raw_string_ostream OS(Str);
-  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
-  OS << ": ";
-  Case->printPretty(OS, nullptr, Context.getPrintingPolicy());
-  return OS.str();
-}
-
-void DefaultCond::dump(const ASTContext &Context) {
-  Cond->dumpPretty(Context);
-  outs() << ": ";
-  for (auto *Case : Cases) {
-    Case->dumpPretty(Context);
-    outs() << " ";
-  }
-}
-
-std::string DefaultCond::toString(const ASTContext &Context) {
-  std::string Str;
-  llvm::raw_string_ostream OS(Str);
-  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
-  OS << ": ";
-  for (auto *Case : Cases) {
-    Case->printPretty(OS, nullptr, Context.getPrintingPolicy());
-    OS << " ";
-  }
-  return OS.str();
-}
-
 void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
   unsigned ID = Blk->getBlockID();
 
@@ -479,49 +401,13 @@ void Analysis::traceBack() {
     for (unsigned J = 0; J < CondNum; ++J) {
       CondStatus &Cond = CondChain[J];
       if (Cond.Condition) {
-        const Stmt *S = Cond.Condition->getCond();
-        // S->dumpColor();
-        switch (S->getStmtClass()) {
-        default:
-          // errs() << "traceBack() unhandle: " << S->getStmtClassName() <<
-          // "\n"; S->dumpColor();
-          break;
-        case Stmt::BinaryOperatorClass: {
-          const BinaryOperator *BO = cast<BinaryOperator>(S);
-          if (BO->isComparisonOp()) {
-            Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
-            Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
-            if (LHS->getStmtClass() == Stmt::DeclRefExprClass) {
-              DeclRefExpr *DRE = cast<DeclRefExpr>(LHS);
-              const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
-              if (TraceBack) {
-                Cond.TraceBacks.push_back(TraceBack);
-              }
-            }
-            if (RHS->getStmtClass() == Stmt::DeclRefExprClass) {
-              DeclRefExpr *DRE = cast<DeclRefExpr>(RHS);
-              const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
-              if (TraceBack) {
-                Cond.TraceBacks.push_back(TraceBack);
-              }
+        if (Cond.Condition->containDeclRefExpr()) {
+          for (const DeclRefExpr *DRE : Cond.Condition->getDeclRefExprList()) {
+            const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
+            if (TraceBack) {
+              Cond.TraceBacks.push_back(TraceBack);
             }
           }
-          break;
-        }
-        case Stmt::UnaryOperatorClass: {
-          const UnaryOperator *UO = cast<UnaryOperator>(S);
-          if (UO->isArithmeticOp()) {
-            Expr *SubExpr = UO->getSubExpr()->IgnoreParenImpCasts();
-            if (SubExpr->getStmtClass() == Stmt::DeclRefExprClass) {
-              DeclRefExpr *DRE = cast<DeclRefExpr>(SubExpr);
-              const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
-              if (TraceBack) {
-                Cond.TraceBacks.push_back(TraceBack);
-              }
-            }
-          }
-          break;
-        }
         }
       }
     }
@@ -600,6 +486,21 @@ const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
   return TraceBack;
 }
 
+void Analysis::getCallReturnInfo(CallReturnInfo &Info, CondStatus &Cond,
+                                 const CallExpr *CE, unsigned CondChainID) {
+  bool Flag = Cond.Flag;
+  if (Cond.Condition->isNot())
+    Flag = !Flag;
+  if (Info.find(CE) == Info.end()) {
+    Info[CE][Cond.Condition->getCondStr()] = Flag;
+  } else if (Info[CE].find(Cond.Condition->getCondStr()) == Info[CE].end()) {
+    Info[CE][Cond.Condition->getCondStr()] = Flag;
+  } else if (Info[CE][Cond.Condition->getCondStr()] != Flag) {
+    errs() << "Contradictory conditions\n";
+    ContraChains.insert(CondChainID);
+  }
+}
+
 void Analysis::findCallReturn() {
   unsigned ID = Cfg->getExit().getBlockID();
   CondChains &CondChains = BlkChain[ID];
@@ -614,36 +515,13 @@ void Analysis::findCallReturn() {
     for (unsigned J = 0; J < CondNum; ++J) {
       CondStatus &Cond = CondChain[J];
       if (Cond.Condition) {
-        const Stmt *S = Cond.Condition->getCond();
-        // S->dumpColor();
-        switch (S->getStmtClass()) {
-        default:
-          // errs() << "traceBack() unhandle: " << S->getStmtClassName() <<
-          // "\n"; S->dumpColor();
-          break;
-        case Stmt::CXXMemberCallExprClass: {
-          // errs() << "traceBack() unhandle: CXXMemberCallExpr\n";
-          // break;
-        }
-          LLVM_FALLTHROUGH;
-        case Stmt::CallExprClass: {
-          // errs() << "traceBack() unhandle: CallExpr\n";
-          // const CallExpr *CE = cast<CallExpr>(S);
-          bool Flag = Cond.Flag;
-          if (Cond.Condition->isNot())
-            Flag = !Flag;
-          if (Info.find(S) == Info.end()) {
-            Info[S][Cond.Condition->getCondStr()] = Flag;
-          } else if (Info[S].find(Cond.Condition->getCondStr()) ==
-                     Info[S].end()) {
-            Info[S][Cond.Condition->getCondStr()] = Flag;
-          } else if (Info[S][Cond.Condition->getCondStr()] != Flag) {
-            errs() << "Contradictory conditions\n";
-            ContraChains.insert(I);
+        // handle the call expression in the condition
+        if (Cond.Condition->containCallExpr()) {
+          for (const CallExpr *CE : Cond.Condition->getCallExprList()) {
+            getCallReturnInfo(Info, Cond, CE, I);
           }
-          break;
         }
-        }
+        // handle the call expression in the trace back
         for (const Stmt *S : Cond.TraceBacks) {
           // S->dumpColor();
           switch (S->getStmtClass()) {
@@ -660,19 +538,7 @@ void Analysis::findCallReturn() {
                   // auto Cond = CondChains[I].first[J];
                   if (Init->getStmtClass() == Stmt::CXXMemberCallExprClass ||
                       Init->getStmtClass() == Stmt::CallExprClass) {
-                    bool Flag = Cond.Flag;
-                    if (Cond.Condition->isNot())
-                      Flag = !Flag;
-                    if (Info.find(Init) == Info.end()) {
-                      Info[Init][Cond.Condition->getCondStr()] = Flag;
-                    } else if (Info[Init].find(Cond.Condition->getCondStr()) ==
-                               Info[Init].end()) {
-                      Info[Init][Cond.Condition->getCondStr()] = Flag;
-                    } else if (Info[Init][Cond.Condition->getCondStr()] !=
-                               Flag) {
-                      errs() << "Contradictory conditions\n";
-                      ContraChains.insert(I);
-                    }
+                    getCallReturnInfo(Info, Cond, cast<CallExpr>(Init), I);
                   }
                 }
               }
@@ -686,18 +552,7 @@ void Analysis::findCallReturn() {
               Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
               if (RHS->getStmtClass() == Stmt::CXXMemberCallExprClass ||
                   RHS->getStmtClass() == Stmt::CallExprClass) {
-                bool Flag = Cond.Flag;
-                if (Cond.Condition->isNot())
-                  Flag = !Flag;
-                if (Info.find(RHS) == Info.end()) {
-                  Info[RHS][Cond.Condition->getCondStr()] = Flag;
-                } else if (Info[RHS].find(Cond.Condition->getCondStr()) ==
-                           Info[RHS].end()) {
-                  Info[RHS][Cond.Condition->getCondStr()] = Flag;
-                } else if (Info[RHS][Cond.Condition->getCondStr()] != Flag) {
-                  errs() << "Contradictory conditions\n";
-                  ContraChains.insert(I);
-                }
+                getCallReturnInfo(Info, Cond, cast<CallExpr>(RHS), I);
               }
             }
             break;
