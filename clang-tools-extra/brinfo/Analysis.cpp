@@ -1,8 +1,12 @@
 #include "Analysis.h"
+#include "nlohmann/json.hpp"
+#include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/Analysis/CFG.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
+
+using json = nlohmann::json;
 
 namespace BrInfo {
 
@@ -19,7 +23,7 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
   if (Parent != -1 && !BlkChain[Parent].empty()) {
     std::pair<CondChain, Path> Chain = BlkChain[Parent].back();
     auto CondChain = Chain.first;
-    CondChain.push_back({Condition, Flag, {}});
+    CondChain.push_back({Condition, Flag, {}, {}});
     auto Path = Chain.second;
     Path.push_back(Blk);
     BlkChain[ID].push_back({CondChain, Path});
@@ -169,7 +173,7 @@ void Analysis::dumpBlkChain(unsigned ID) {
 //   }
 // }
 
-std::string Analysis::getTraceBackStr(std::vector<const Stmt *> &TraceBacks) {
+std::string Analysis::getLastDefStr(std::vector<const Stmt *> &TraceBacks) {
   std::string Str;
   llvm::raw_string_ostream OS(Str);
   if (!TraceBacks.empty()) {
@@ -235,20 +239,24 @@ void Analysis::dumpRequirements() {
             OS << (Cond.Flag ? "False" : "True");
           else
             OS << (Cond.Flag ? "True" : "False");
-          OS << getTraceBackStr(Cond.TraceBacks) << "\n";
+          OS << getLastDefStr(Cond.LastDefStmts) << "\n";
         }
       }
-      if (!CallReturns[I].empty()) {
+      if (!LastDefList[I].FuncCall.empty()) {
         // TODO: get class name
         OS << "// Create a class MockReader\n";
-        for (auto &CallReturn : CallReturns[I]) {
-          OS << "// Mock ";
-          CallReturn.first->printPretty(OS, nullptr,
-                                        Context.getPrintingPolicy());
-          OS << ", which makes ";
-          for (auto &Return : CallReturn.second) {
-            OS << Return.first << " is ";
-            OS << (Return.second ? "True" : "False") << ", ";
+        auto &FuncCallMap = LastDefList[I].FuncCall;
+        for (auto &Func : FuncCallMap) {
+          OS << "// Mock " << Func.first;
+          // TODO: In the order of these CallExpr in the source file
+          OS << ", which makes";
+          for (auto &CallExpr : Func.second) {
+            // CallExpr.first->printPretty(OS, nullptr,
+            //                             Context.getPrintingPolicy());
+            for (auto &Return : CallExpr.second) {
+              OS << " " << Return.first << " is ";
+              OS << (Return.second ? "True" : "False") << ",";
+            }
           }
           OS << "\n";
         }
@@ -404,24 +412,27 @@ void Analysis::traceBack() {
       if (Cond.Condition) {
         if (Cond.Condition->containDeclRefExpr()) {
           for (const DeclRefExpr *DRE : Cond.Condition->getDeclRefExprList()) {
-            const Stmt *TraceBack = handleDeclRefExpr(DRE, Path, J);
-            if (TraceBack) {
+            const Stmt *LastDefStmt = findLastDefStmt(DRE, Path, J);
+            if (LastDefStmt) {
               // outs() << "Condition:\n";
               // Cond.Condition->getCond()->dumpColor();
               // outs() << "Value: " << (Cond.Flag ? "True" : "False") << "\n";
               // outs() << "DeclRef:\n";
               // DRE->dumpColor();
-              outs() << "TraceBack:\n";
-              TraceBack->dumpColor();
-              bool Exam = examineTraceBack(DRE, TraceBack,
-                                           Cond.Condition->isNot(), Cond.Flag);
+              // outs() << "TraceBack:\n";
+              // LastDefStmt->dumpColor();
+              bool Exam = examineLastDef(DRE, LastDefStmt,
+                                         Cond.Condition->isNot(), Cond.Flag);
               // outs() << "Exam: " << Exam << "\n";
               if (Exam)
-                Cond.TraceBacks.push_back(TraceBack);
+                Cond.LastDefStmts.push_back(LastDefStmt);
               else {
-                errs() << "Contradictory conditions\n";
+                errs() << "Contradictory CondChain " << I << "\n";
                 ContraChains.insert(I);
               };
+            } else if (DRE->getDecl()->getKind() == Decl::Kind::ParmVar) {
+              // handle ParmVar
+              Cond.ParmVars.push_back(cast<ParmVarDecl>(DRE->getDecl()));
             }
           }
         }
@@ -453,14 +464,14 @@ bool Analysis::checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag) {
   return Res;
 }
 
-bool Analysis::examineTraceBack(const DeclRefExpr *DeclRef,
-                                const Stmt *TraceBack, bool IsNot, bool Flag) {
+bool Analysis::examineLastDef(const DeclRefExpr *DeclRef,
+                              const Stmt *LastDefStmt, bool IsNot, bool Flag) {
   bool Res = true;
-  switch (TraceBack->getStmtClass()) {
+  switch (LastDefStmt->getStmtClass()) {
   default:
     break;
   case Stmt::DeclStmtClass: {
-    const DeclStmt *DS = cast<DeclStmt>(TraceBack);
+    const DeclStmt *DS = cast<DeclStmt>(LastDefStmt);
     for (const Decl *D : DS->decls()) {
       if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD == DeclRef->getDecl()) {
@@ -472,7 +483,7 @@ bool Analysis::examineTraceBack(const DeclRefExpr *DeclRef,
     break;
   }
   case Stmt::BinaryOperatorClass: {
-    const BinaryOperator *BO = cast<BinaryOperator>(TraceBack);
+    const BinaryOperator *BO = cast<BinaryOperator>(LastDefStmt);
     if (BO->isAssignmentOp()) {
       Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
       if (LHS->getStmtClass() == Stmt::DeclRefExprClass) {
@@ -489,17 +500,13 @@ bool Analysis::examineTraceBack(const DeclRefExpr *DeclRef,
   return Res;
 }
 
-// FIXME: handle ParmVar, consider change CallReturnInfo and CallReturns
-const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
-                                        unsigned Loc) {
+const Stmt *Analysis::findLastDefStmt(const DeclRefExpr *DeclRef, Path &Path,
+                                      unsigned Loc) {
   // outs() << "DeclRefExpr: ";
   // DeclRef->dumpPretty(Context);
   // outs() << "\n";
   bool Found = false;
   const Stmt *TraceBack = nullptr;
-  // if (DeclRef->getDecl()->getKind() == Decl::Kind::ParmVar) {
-  //   return TraceBack;
-  // }
   for (auto It = Path.rend() - Loc; It != Path.rend() && !Found; ++It) {
     CFGBlock *Blk = *It;
     CFGElement *E = Blk->rbegin();
@@ -512,7 +519,8 @@ const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
         // Stmt->dumpColor();
         switch (Stmt->getStmtClass()) {
         default:
-          // errs() << "handleDeclRefExpr() unhandle: " << Stmt->getStmtClassName()
+          // errs() << "handleDeclRefExpr() unhandle: " <<
+          // Stmt->getStmtClassName()
           //        << "\n";
           // Stmt->dumpColor();
           break;
@@ -562,28 +570,65 @@ const Stmt *Analysis::handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
   return TraceBack;
 }
 
-void Analysis::getCallReturnInfo(CallReturnInfo &Info, CondStatus &Cond,
-                                 const CallExpr *CE, unsigned CondChainID) {
+void Analysis::setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
+                                  const Stmt *S, unsigned int CondChainID) {
+  auto &NonFuncCallMap = Info.NonFuncCall;
   bool Flag = Cond.Flag;
   if (Cond.Condition->isNot())
     Flag = !Flag;
-  if (Info.find(CE) == Info.end()) {
-    Info[CE][Cond.Condition->getCondStr()] = Flag;
-  } else if (Info[CE].find(Cond.Condition->getCondStr()) == Info[CE].end()) {
-    Info[CE][Cond.Condition->getCondStr()] = Flag;
-  } else if (Info[CE][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory conditions\n";
+  if (NonFuncCallMap.find(S) == NonFuncCallMap.end() ||
+      NonFuncCallMap[S].find(Cond.Condition->getCondStr()) ==
+          NonFuncCallMap[S].end()) {
+    NonFuncCallMap[S][Cond.Condition->getCondStr()] = Flag;
+  } else if (NonFuncCallMap[S][Cond.Condition->getCondStr()] != Flag) {
+    errs() << "Contradictory CondChain " << CondChainID << "\n";
     ContraChains.insert(CondChainID);
   }
 }
 
-void Analysis::findCallReturn() {
+void Analysis::setFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
+                               const CallExpr *CE, unsigned CondChainID) {
+  auto &FuncCallMap = Info.FuncCall;
+  std::string FuncName = CE->getDirectCallee()->getNameAsString();
+  bool Flag = Cond.Flag;
+  if (Cond.Condition->isNot())
+    Flag = !Flag;
+  if (FuncCallMap.find(FuncName) == FuncCallMap.end() ||
+      FuncCallMap[FuncName].find(CE) == FuncCallMap[FuncName].end() ||
+      FuncCallMap[FuncName][CE].find(Cond.Condition->getCondStr()) ==
+          FuncCallMap[FuncName][CE].end()) {
+    FuncCallMap[FuncName][CE][Cond.Condition->getCondStr()] = Flag;
+  } else if (FuncCallMap[FuncName][CE][Cond.Condition->getCondStr()] != Flag) {
+    errs() << "Contradictory CondChain " << CondChainID << "\n";
+    ContraChains.insert(CondChainID);
+  }
+}
+
+void Analysis::setParmVarInfo(LastDefInfo &Info, CondStatus &Cond,
+                              const ParmVarDecl *PVD, unsigned CondChainID) {
+  auto &ParmVarMap = Info.ParmVar;
+  bool Flag = Cond.Flag;
+  if (Cond.Condition->isNot())
+    Flag = !Flag;
+  if (ParmVarMap.find(PVD) == ParmVarMap.end() ||
+      ParmVarMap[PVD].find(Cond.Condition->getCondStr()) ==
+          ParmVarMap[PVD].end()) {
+    ParmVarMap[PVD][Cond.Condition->getCondStr()] = Flag;
+  } else if (ParmVarMap[PVD][Cond.Condition->getCondStr()] != Flag) {
+    errs() << "Contradictory CondChain " << CondChainID << "\n";
+    ContraChains.insert(CondChainID);
+  }
+}
+
+void Analysis::findContraInLastDef() {
   unsigned ID = Cfg->getExit().getBlockID();
   CondChains &CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
-  CallReturns.resize(Size);
+  LastDefList.resize(Size);
   for (unsigned I = 0; I < Size; ++I) {
-    CallReturnInfo &Info = CallReturns[I];
+    if (ContraChains.find(I) != ContraChains.end())
+      continue;
+    LastDefInfo &Info = LastDefList[I];
     auto &CondChain = CondChains[I].first;
     // auto &Path = CondChains[I].second;
     // outs() << "CondChain " << I << ":\n";
@@ -591,14 +636,14 @@ void Analysis::findCallReturn() {
     for (unsigned J = 0; J < CondNum; ++J) {
       CondStatus &Cond = CondChain[J];
       if (Cond.Condition) {
-        // handle the call expression in the condition
+        // handle call expression in the condition
         if (Cond.Condition->containCallExpr()) {
           for (const CallExpr *CE : Cond.Condition->getCallExprList()) {
-            getCallReturnInfo(Info, Cond, CE, I);
+            setFuncCallInfo(Info, Cond, CE, I);
           }
         }
-        // handle the call expression in the trace back
-        for (const Stmt *S : Cond.TraceBacks) {
+        // handle last definition and call expression in the trace back
+        for (const Stmt *S : Cond.LastDefStmts) {
           // S->dumpColor();
           switch (S->getStmtClass()) {
           default:
@@ -614,7 +659,9 @@ void Analysis::findCallReturn() {
                   // auto Cond = CondChains[I].first[J];
                   if (Init->getStmtClass() == Stmt::CXXMemberCallExprClass ||
                       Init->getStmtClass() == Stmt::CallExprClass) {
-                    getCallReturnInfo(Info, Cond, cast<CallExpr>(Init), I);
+                    setFuncCallInfo(Info, Cond, cast<CallExpr>(Init), I);
+                  } else {
+                    setNonFuncCallInfo(Info, Cond, Init, I);
                   }
                 }
               }
@@ -628,12 +675,18 @@ void Analysis::findCallReturn() {
               Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
               if (RHS->getStmtClass() == Stmt::CXXMemberCallExprClass ||
                   RHS->getStmtClass() == Stmt::CallExprClass) {
-                getCallReturnInfo(Info, Cond, cast<CallExpr>(RHS), I);
+                setFuncCallInfo(Info, Cond, cast<CallExpr>(RHS), I);
+              } else {
+                setNonFuncCallInfo(Info, Cond, RHS, I);
               }
             }
             break;
           }
           }
+        }
+        // handle ParmVars
+        for (const ParmVarDecl *PVD : Cond.ParmVars) {
+          setParmVarInfo(Info, Cond, PVD, I);
         }
       }
     }

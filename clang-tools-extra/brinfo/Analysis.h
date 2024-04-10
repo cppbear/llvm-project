@@ -13,14 +13,23 @@ class Analysis {
   struct CondStatus {
     BaseCond *Condition = nullptr;
     bool Flag = false;
-    std::vector<const Stmt *> TraceBacks;
+    std::vector<const Stmt *> LastDefStmts;
+    std::vector<const ParmVarDecl *> ParmVars;
+  };
+
+  struct LastDefInfo {
+    using DefInfoMap = std::map<const Stmt *, std::map<std::string, bool>>;
+    using ParmInfoMap = std::map<const ParmVarDecl *, std::map<std::string, bool>>;
+    std::map<std::string, DefInfoMap> FuncCall;
+    DefInfoMap NonFuncCall;
+    ParmInfoMap ParmVar;
   };
 
   using CondChain = std::vector<CondStatus>; // A chain of conditions
   using Path = std::vector<CFGBlock *>;      // A path of basic blocks
   using CondChains = std::vector<std::pair<CondChain, Path>>;
-  using CallReturnInfo =
-      std::map<const CallExpr *, std::map<std::string, bool>>;
+  // using CallReturnInfo =
+  //     std::map<const CallExpr *, std::map<std::string, bool>>;
 
   std::unique_ptr<CFG> &Cfg;
   ASTContext &Context;
@@ -31,14 +40,15 @@ class Analysis {
   std::pair<BaseCond *, bool> TmpCond;
   // std::vector<std::vector<std::vector<const Stmt *>>> TraceBacks;
   // std::map<const Stmt *, std::map<std::string, bool>> CallReturn;
-  std::vector<CallReturnInfo> CallReturns;
+  // std::vector<CallReturnInfo> CallReturns;
+  std::vector<LastDefInfo> LastDefList;
   std::set<unsigned> ContraChains;
 
   void dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag);
   void dumpBlkChain();
   void dumpBlkChain(unsigned ID);
   // void dumpTraceBack(unsigned CondChain, unsigned Cond);
-  std::string getTraceBackStr(std::vector<const Stmt *> &TraceBacks);
+  std::string getLastDefStr(std::vector<const Stmt *> &TraceBacks);
   void simplify(const BinaryOperator *BO, bool Flag);
   void deriveCond(bool Flag, BinaryOperator::Opcode Opcode, const Expr *Known,
                   const Expr *Unknown);
@@ -50,7 +60,7 @@ public:
     BlkChain.resize(Cfg->getNumBlockIDs());
     Parent = -1;
     BlkChain[Cfg->getEntry().getBlockID()].push_back(
-        {{{nullptr, false, {}}}, {&Cfg->getEntry()}});
+        {{{nullptr, false, {}, {}}}, {&Cfg->getEntry()}});
   }
   ~Analysis() {}
   void getCondChains();
@@ -58,14 +68,18 @@ public:
   void simplifyConds();
   void traceBack();
   bool checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag);
-  bool examineTraceBack(const DeclRefExpr *DeclRef, const Stmt *TraceBack,
+  bool examineLastDef(const DeclRefExpr *DeclRef, const Stmt *LastDefStmt,
                         bool IsNot, bool Flag);
-  const Stmt *handleDeclRefExpr(const DeclRefExpr *DeclRef, Path &Path,
+  const Stmt *findLastDefStmt(const DeclRefExpr *DeclRef, Path &Path,
                                 unsigned Loc);
   void dumpRequirements();
-  void findCallReturn();
-  void getCallReturnInfo(CallReturnInfo &Info, CondStatus &Cond,
-                         const CallExpr *CE, unsigned CondChainID);
+  void findContraInLastDef();
+  void setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond, const Stmt *S,
+                          unsigned CondChainID);
+  void setFuncCallInfo(LastDefInfo &Info, CondStatus &Cond, const CallExpr *CE,
+                       unsigned CondChainID);
+  void setParmVarInfo(LastDefInfo &Info, CondStatus &Cond, const ParmVarDecl *PVD,
+                          unsigned CondChainID);
 };
 
 } // namespace BrInfo

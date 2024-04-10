@@ -23,6 +23,7 @@ public:
       Func->getSourceRange().dump(*Result.SourceManager);
       outs() << "Kind: " << Func->Decl::getDeclKindName() << "\n";
       outs() << "ReturnType: " << Func->getReturnType().getAsString() << "\n";
+      // Func->dumpColor();
       auto BO = CFG::BuildOptions();
       BO.PruneTriviallyFalseEdges = true;
       auto Cfg = CFG::buildCFG(Func, Func->getBody(), Result.Context, BO);
@@ -50,7 +51,7 @@ public:
         Analysis.simplifyConds();
         Analysis.traceBack();
         // Analysis.dumpCondChains();
-        Analysis.findCallReturn();
+        Analysis.findContraInLastDef();
         Analysis.dumpRequirements();
       }
     }
