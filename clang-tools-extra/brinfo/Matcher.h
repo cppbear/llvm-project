@@ -52,7 +52,7 @@ public:
         Analysis.traceBack();
         // Analysis.dumpCondChains();
         Analysis.findContraInLastDef();
-        Analysis.dumpRequirements();
+        Analysis.dumpRequirements(ClassName);
       }
     }
   }

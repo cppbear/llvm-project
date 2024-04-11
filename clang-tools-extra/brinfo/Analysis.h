@@ -48,7 +48,7 @@ class Analysis {
   void dumpBlkChain();
   void dumpBlkChain(unsigned ID);
   // void dumpTraceBack(unsigned CondChain, unsigned Cond);
-  std::string getLastDefStr(std::vector<const Stmt *> &TraceBacks);
+  std::vector<std::string> getLastDefStrVec(std::vector<const Stmt *> &TraceBacks);
   void simplify(const BinaryOperator *BO, bool Flag);
   void deriveCond(bool Flag, BinaryOperator::Opcode Opcode, const Expr *Known,
                   const Expr *Unknown);
@@ -72,7 +72,7 @@ public:
                         bool IsNot, bool Flag);
   const Stmt *findLastDefStmt(const DeclRefExpr *DeclRef, Path &Path,
                                 unsigned Loc);
-  void dumpRequirements();
+  void dumpRequirements(std::string ClassName);
   void findContraInLastDef();
   void setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond, const Stmt *S,
                           unsigned CondChainID);

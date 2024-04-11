@@ -173,17 +173,20 @@ void Analysis::dumpBlkChain(unsigned ID) {
 //   }
 // }
 
-std::string Analysis::getLastDefStr(std::vector<const Stmt *> &TraceBacks) {
+std::vector<std::string> Analysis::getLastDefStrVec(std::vector<const Stmt *> &TraceBacks) {
+  std::vector<std::string> StrVec;
   std::string Str;
   llvm::raw_string_ostream OS(Str);
   if (!TraceBacks.empty()) {
-    OS << ", where ";
     for (const Stmt *S : TraceBacks) {
       S->printPretty(OS, nullptr, Context.getPrintingPolicy());
+      OS.flush();
+      rtrim(Str);
+      StrVec.push_back(Str);
+      Str.clear();
     }
   }
-  rtrim(Str);
-  return Str;
+  return StrVec;
 }
 
 // void Analysis::dumpCondChains() {
@@ -213,58 +216,73 @@ std::string Analysis::getLastDefStr(std::vector<const Stmt *> &TraceBacks) {
 //   }
 // }
 
-void Analysis::dumpRequirements() {
-  std::string FilePath = "/home/chubei/workspace/utgen/test_requirements.txt";
+void Analysis::dumpRequirements(std::string ClassName) {
+  std::string FilePath = "/home/chubei/workspace/utgen/requirements.json";
   std::error_code EC;
-  llvm::raw_fd_stream OS(FilePath, EC);
+  llvm::raw_fd_stream File(FilePath, EC);
   if (EC) {
     errs() << "Error: " << EC.message() << "\n";
     return;
   }
 
+  json Json;
+
   unsigned ID = Cfg->getExit().getBlockID();
   CondChains &CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
+  std::string Require;
+  llvm::raw_string_ostream OS(Require);
+  std::vector<std::string> CondVec;
   for (unsigned I = 0; I < Size; ++I) {
     if (ContraChains.find(I) == ContraChains.end()) {
+      std::string CondChainStr = "CondChain " + std::to_string(I);
+      Json[CondChainStr]["Input"] = "";
       auto &CondChain = CondChains[I].first;
       // auto &Path = CondChains[I].second;
-      OS << "CondChain " << I << ":\n";
       unsigned CondNum = CondChain.size();
       for (unsigned J = 0; J < CondNum; ++J) {
         CondStatus &Cond = CondChain[J];
         if (Cond.Condition) {
-          OS << "// Precondition: " << Cond.Condition->getCondStr() << " is ";
+          OS << Cond.Condition->getCondStr() << " is ";
           if (Cond.Condition->isNot())
-            OS << (Cond.Flag ? "False" : "True");
+            OS << (Cond.Flag ? "false" : "true");
           else
-            OS << (Cond.Flag ? "True" : "False");
-          OS << getLastDefStr(Cond.LastDefStmts) << "\n";
+            OS << (Cond.Flag ? "true" : "false");
+          OS.flush();
+          Json[CondChainStr]["Precondition"].push_back(
+              {{"Condition", Require},
+               {"LastDef", getLastDefStrVec(Cond.LastDefStmts)}});
+          Require.clear();
         }
       }
+      Json[CondChainStr]["Class"] = ClassName;
       if (!LastDefList[I].FuncCall.empty()) {
-        // TODO: get class name
-        OS << "// Create a class MockReader\n";
         auto &FuncCallMap = LastDefList[I].FuncCall;
         for (auto &Func : FuncCallMap) {
-          OS << "// Mock " << Func.first;
           // TODO: In the order of these CallExpr in the source file
-          OS << ", which makes";
           for (auto &CallExpr : Func.second) {
             // CallExpr.first->printPretty(OS, nullptr,
             //                             Context.getPrintingPolicy());
             for (auto &Return : CallExpr.second) {
-              OS << " " << Return.first << " is ";
-              OS << (Return.second ? "True" : "False") << ",";
+              OS << Return.first << " is ";
+              OS << (Return.second ? "true" : "false");
+              OS.flush();
+              CondVec.push_back(Require);
+              Require.clear();
             }
+            Json[CondChainStr]["Mock"].push_back(
+                {{"Function", Func.first}, {"Condition", CondVec}});
+            Require.clear();
+            CondVec.clear();
           }
-          OS << "\n";
         }
       }
+      Json[CondChainStr]["Expected result"] = "";
+      Require.clear();
     }
-    // OS << "\n";
     // break;
   }
+  File << Json.dump(4);
 }
 
 void Analysis::simplifyConds() {
