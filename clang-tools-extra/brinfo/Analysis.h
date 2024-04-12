@@ -28,8 +28,6 @@ class Analysis {
   using CondChain = std::vector<CondStatus>; // A chain of conditions
   using Path = std::vector<CFGBlock *>;      // A path of basic blocks
   using CondChains = std::vector<std::pair<CondChain, Path>>;
-  // using CallReturnInfo =
-  //     std::map<const CallExpr *, std::map<std::string, bool>>;
 
   std::unique_ptr<CFG> &Cfg;
   ASTContext &Context;
@@ -38,9 +36,7 @@ class Analysis {
   long Parent;
   std::map<const Stmt *, bool> CondMap;
   std::pair<BaseCond *, bool> TmpCond;
-  // std::vector<std::vector<std::vector<const Stmt *>>> TraceBacks;
-  // std::map<const Stmt *, std::map<std::string, bool>> CallReturn;
-  // std::vector<CallReturnInfo> CallReturns;
+
   std::vector<LastDefInfo> LastDefList;
   std::set<unsigned> ContraChains;
 
