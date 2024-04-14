@@ -19,11 +19,24 @@ class Analysis {
 
   struct LastDefInfo {
     using DefInfoMap = std::map<const Stmt *, std::map<std::string, bool>>;
-    using ParmInfoMap = std::map<const ParmVarDecl *, std::map<std::string, bool>>;
+    using ParmInfoMap =
+        std::map<const ParmVarDecl *, std::map<std::string, bool>>;
     std::map<std::string, DefInfoMap> FuncCall;
     DefInfoMap NonFuncCall;
     ParmInfoMap ParmVar;
   };
+
+  struct CallExprInfo {
+    const CallExpr *CE;
+    unsigned Order;
+    std::map<std::string, bool> CondInfos;
+
+    bool operator<(const CallExprInfo &RHS) const {
+      return Order < RHS.Order;
+    }
+  };
+
+  std::map<const FunctionDecl *, std::vector<CallExprInfo>> CallExprList;
 
   using CondChain = std::vector<CondStatus>; // A chain of conditions
   using Path = std::vector<CFGBlock *>;      // A path of basic blocks
@@ -44,7 +57,8 @@ class Analysis {
   void dumpBlkChain();
   void dumpBlkChain(unsigned ID);
   // void dumpTraceBack(unsigned CondChain, unsigned Cond);
-  std::vector<std::string> getLastDefStrVec(std::vector<const Stmt *> &TraceBacks);
+  std::vector<std::string>
+  getLastDefStrVec(std::vector<const Stmt *> &TraceBacks);
   void simplify(const BinaryOperator *BO, bool Flag);
   void deriveCond(bool Flag, BinaryOperator::Opcode Opcode, const Expr *Known,
                   const Expr *Unknown);
@@ -65,17 +79,17 @@ public:
   void traceBack();
   bool checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag);
   bool examineLastDef(const DeclRefExpr *DeclRef, const Stmt *LastDefStmt,
-                        bool IsNot, bool Flag);
+                      bool IsNot, bool Flag);
   const Stmt *findLastDefStmt(const DeclRefExpr *DeclRef, Path &Path,
-                                unsigned Loc);
+                              unsigned Loc);
   void dumpRequirements(std::string ClassName);
   void findContraInLastDef();
   void setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond, const Stmt *S,
                           unsigned CondChainID);
   void setFuncCallInfo(LastDefInfo &Info, CondStatus &Cond, const CallExpr *CE,
                        unsigned CondChainID);
-  void setParmVarInfo(LastDefInfo &Info, CondStatus &Cond, const ParmVarDecl *PVD,
-                          unsigned CondChainID);
+  void setParmVarInfo(LastDefInfo &Info, CondStatus &Cond,
+                      const ParmVarDecl *PVD, unsigned CondChainID);
 };
 
 } // namespace BrInfo

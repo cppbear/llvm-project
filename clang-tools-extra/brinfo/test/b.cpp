@@ -1,18 +1,16 @@
 #include <iostream>
 
-void processNumber(int number) {
-  if (number > 0) {
-    std::cout << "Number is positive." << std::endl;
-  } else if (number < 0) {
-    std::cout << "Number is negative." << std::endl;
-  } else {
-    std::cout << "Number is zero." << std::endl;
+int foo() { return 2; }
+
+int bar() {return 3;}
+
+void loop(int x) {
+  int t = foo() + bar();
+  for (int i = 0; i < x && x > 10; i++) {
+    if (i % 2 == 0)
+      std::cout << "Even iteration " << i << std::endl;
+    else
+      std::cout << "Odd iteration " << i << std::endl;
   }
-}
-
-int main() {
-  int num = 10;
-  processNumber(num);
-
-  return 0;
+  int s = foo() - bar();
 }
