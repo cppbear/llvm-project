@@ -1,12 +1,9 @@
 #include "Analysis.h"
-#include "nlohmann/json.hpp"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/Analysis/CFG.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
-
-using json = nlohmann::json;
 
 namespace BrInfo {
 
@@ -173,13 +170,14 @@ void Analysis::dumpBlkChain(unsigned ID) {
 //   }
 // }
 
-std::vector<std::string> Analysis::getLastDefStrVec(std::vector<const Stmt *> &TraceBacks) {
+std::vector<std::string>
+Analysis::getLastDefStrVec(std::vector<const Stmt *> &TraceBacks) {
   std::vector<std::string> StrVec;
   std::string Str;
   llvm::raw_string_ostream OS(Str);
   if (!TraceBacks.empty()) {
     for (const Stmt *S : TraceBacks) {
-      S->printPretty(OS, nullptr, Context.getPrintingPolicy());
+      S->printPretty(OS, nullptr, Context->getPrintingPolicy());
       OS.flush();
       rtrim(Str);
       StrVec.push_back(Str);
@@ -216,14 +214,33 @@ std::vector<std::string> Analysis::getLastDefStrVec(std::vector<const Stmt *> &T
 //   }
 // }
 
-void Analysis::dumpRequirements(std::string ClassName) {
-  std::string FilePath = "/home/chubei/workspace/utgen/requirements.json";
-  std::error_code EC;
-  llvm::raw_fd_stream File(FilePath, EC);
-  if (EC) {
-    errs() << "Error: " << EC.message() << "\n";
-    return;
+void Analysis::setSignature() {
+  Signature = FuncDecl->getReturnType().getAsString() + " ";
+  if (FuncDecl->isCXXClassMember()) {
+    Signature +=
+        cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString() + "::";
   }
+  Signature += FuncDecl->getNameAsString() + "(";
+  int I = 0;
+  for (ParmVarDecl *Param : FuncDecl->parameters()) {
+    if (I++ > 0) {
+      Signature += ", ";
+    }
+    Signature +=
+        Param->getType().getAsString() + " " + Param->getNameAsString();
+  }
+  Signature += ")";
+  // outs() << "Signature: " << Signature << "\n";
+}
+
+void Analysis::getRequirements() {
+  // std::string FilePath = "/home/chubei/workspace/utgen/requirements.json";
+  // std::error_code EC;
+  // llvm::raw_fd_stream File(FilePath, EC);
+  // if (EC) {
+  //   errs() << "Error: " << EC.message() << "\n";
+  //   return;
+  // }
 
   json Json;
 
@@ -235,8 +252,8 @@ void Analysis::dumpRequirements(std::string ClassName) {
   std::vector<std::string> CondVec;
   for (unsigned I = 0; I < Size; ++I) {
     if (ContraChains.find(I) == ContraChains.end()) {
-      std::string CondChainStr = "CondChain " + std::to_string(I);
-      Json[CondChainStr]["Input"] = "";
+      std::string CondChainStr = "condchain " + std::to_string(I);
+      Json[CondChainStr]["input"] = "";
       auto &CondChain = CondChains[I].first;
       // auto &Path = CondChains[I].second;
       unsigned CondNum = CondChain.size();
@@ -249,13 +266,18 @@ void Analysis::dumpRequirements(std::string ClassName) {
           else
             OS << (Cond.Flag ? "true" : "false");
           OS.flush();
-          Json[CondChainStr]["Precondition"].push_back(
-              {{"Condition", Require},
-               {"LastDef", getLastDefStrVec(Cond.LastDefStmts)}});
+          Json[CondChainStr]["precondition"].push_back(
+              {{"condition", Require},
+               {"lastdef", getLastDefStrVec(Cond.LastDefStmts)}});
           Require.clear();
         }
       }
-      Json[CondChainStr]["Class"] = ClassName;
+      std::string ClassName = "";
+      if (FuncDecl->isCXXClassMember()) {
+        ClassName =
+            cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString();
+      }
+      Json[CondChainStr]["class"] = ClassName;
       if (!LastDefList[I].FuncCall.empty()) {
         auto &FuncCallMap = LastDefList[I].FuncCall;
         for (auto &Func : FuncCallMap) {
@@ -270,19 +292,20 @@ void Analysis::dumpRequirements(std::string ClassName) {
               CondVec.push_back(Require);
               Require.clear();
             }
-            Json[CondChainStr]["Mock"].push_back(
-                {{"Function", Func.first}, {"Condition", CondVec}});
+            Json[CondChainStr]["mock"].push_back(
+                {{"function", Func.first}, {"condition", CondVec}});
             Require.clear();
             CondVec.clear();
           }
         }
       }
-      Json[CondChainStr]["Expected result"] = "";
+      Json[CondChainStr]["result"] = "";
       Require.clear();
     }
     // break;
   }
-  File << Json.dump(4);
+  Results[Signature] = Json;
+  // File << Json.dump(4);
 }
 
 void Analysis::simplifyConds() {

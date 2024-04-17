@@ -72,30 +72,30 @@ void BaseCond::findCallExpr(const Stmt *S) {
   }
 }
 
-void BaseCond::setCondStr(const ASTContext &Context) {
+void BaseCond::setCondStr(const ASTContext *Context) {
   llvm::raw_string_ostream OS(CondStr);
   if (Cond->getStmtClass() == Stmt::BinaryOperatorClass &&
       cast<BinaryOperator>(Cond)->getOpcode() == BinaryOperatorKind::BO_NE) {
     IsNot = true;
     Expr *LHS = cast<BinaryOperator>(Cond)->getLHS()->IgnoreParenImpCasts();
     Expr *RHS = cast<BinaryOperator>(Cond)->getRHS()->IgnoreParenImpCasts();
-    LHS->printPretty(OS, nullptr, Context.getPrintingPolicy());
+    LHS->printPretty(OS, nullptr, Context->getPrintingPolicy());
     OS << " == ";
-    RHS->printPretty(OS, nullptr, Context.getPrintingPolicy());
+    RHS->printPretty(OS, nullptr, Context->getPrintingPolicy());
   } else if (Cond->getStmtClass() == Stmt::UnaryOperatorClass &&
              cast<UnaryOperator>(Cond)->getOpcode() ==
                  UnaryOperatorKind::UO_LNot) {
     IsNot = true;
     Expr *SubExpr =
         cast<UnaryOperator>(Cond)->getSubExpr()->IgnoreParenImpCasts();
-    SubExpr->printPretty(OS, nullptr, Context.getPrintingPolicy());
+    SubExpr->printPretty(OS, nullptr, Context->getPrintingPolicy());
   } else {
-    Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+    Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
   }
   rtrim(CondStr);
 }
 
-void IfCond::dump(const ASTContext &Context) { Cond->dumpPretty(Context); }
+void IfCond::dump(const ASTContext *Context) { Cond->dumpPretty(*Context); }
 
 // void IfCond::setCondStr(const ASTContext &Context) {
 //   llvm::raw_string_ostream OS(CondStr);
@@ -120,54 +120,54 @@ void IfCond::dump(const ASTContext &Context) { Cond->dumpPretty(Context); }
 //   rtrim(CondStr);
 // }
 
-std::string IfCond::toString(const ASTContext &Context) {
+std::string IfCond::toString(const ASTContext *Context) {
   std::string Str;
   llvm::raw_string_ostream OS(Str);
-  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
   rtrim(Str);
   return Str;
 }
 
-void LoopCond::dump(const ASTContext &Context) { Cond->dumpPretty(Context); }
+void LoopCond::dump(const ASTContext *Context) { Cond->dumpPretty(*Context); }
 
-std::string LoopCond::toString(const ASTContext &Context) {
+std::string LoopCond::toString(const ASTContext *Context) {
   std::string Str;
   llvm::raw_string_ostream OS(Str);
-  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
   return OS.str();
 }
 
-void CaseCond::dump(const ASTContext &Context) {
-  Cond->dumpPretty(Context);
+void CaseCond::dump(const ASTContext *Context) {
+  Cond->dumpPretty(*Context);
   outs() << ": ";
-  Case->dumpPretty(Context);
+  Case->dumpPretty(*Context);
 }
 
-std::string CaseCond::toString(const ASTContext &Context) {
+std::string CaseCond::toString(const ASTContext *Context) {
   std::string Str;
   llvm::raw_string_ostream OS(Str);
-  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
   OS << ": ";
-  Case->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  Case->printPretty(OS, nullptr, Context->getPrintingPolicy());
   return OS.str();
 }
 
-void DefaultCond::dump(const ASTContext &Context) {
-  Cond->dumpPretty(Context);
+void DefaultCond::dump(const ASTContext *Context) {
+  Cond->dumpPretty(*Context);
   outs() << ": ";
   for (auto *Case : Cases) {
-    Case->dumpPretty(Context);
+    Case->dumpPretty(*Context);
     outs() << " ";
   }
 }
 
-std::string DefaultCond::toString(const ASTContext &Context) {
+std::string DefaultCond::toString(const ASTContext *Context) {
   std::string Str;
   llvm::raw_string_ostream OS(Str);
-  Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
+  Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
   OS << ": ";
   for (auto *Case : Cases) {
-    Case->printPretty(OS, nullptr, Context.getPrintingPolicy());
+    Case->printPretty(OS, nullptr, Context->getPrintingPolicy());
     OS << " ";
   }
   return OS.str();
