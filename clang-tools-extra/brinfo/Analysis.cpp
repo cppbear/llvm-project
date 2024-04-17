@@ -1,8 +1,5 @@
 #include "Analysis.h"
-#include "clang/AST/Decl.h"
-#include "clang/AST/Expr.h"
 #include "clang/Analysis/CFG.h"
-#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 
 namespace BrInfo {
