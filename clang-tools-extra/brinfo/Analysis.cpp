@@ -4,6 +4,52 @@
 
 namespace BrInfo {
 
+void Analysis::clear() {
+  Cfg = nullptr;
+  Context = nullptr;
+  FuncDecl = nullptr;
+  Signature.clear();
+  BlkChain.clear();
+  LastDefList.clear();
+  CallExprList.clear();
+  ContraChains.clear();
+  Parent = -1;
+  CondMap.clear();
+  TmpCond = {nullptr, false};
+}
+
+void Analysis::setType(Type T) {
+  AnalysisType = T;
+  switch (T) {
+  case FILE:
+    Results["type"] = "file";
+    break;
+  case FUNC:
+    Results["type"] = "function";
+    break;
+  }
+}
+
+void Analysis::init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
+  Cfg = CFG;
+  this->Context = Context;
+  FuncDecl = FD;
+  setSignature();
+  BlkChain.resize(Cfg->getNumBlockIDs());
+  Parent = -1;
+  BlkChain[Cfg->getEntry().getBlockID()].push_back(
+      {{{nullptr, false, {}, {}}}, {&Cfg->getEntry()}});
+}
+
+void Analysis::analyze() {
+  getCondChains();
+  simplifyConds();
+  traceBack();
+  findContraInLastDef();
+  setRequire();
+  clear();
+}
+
 void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
   unsigned ID = Blk->getBlockID();
 
@@ -157,18 +203,20 @@ void Analysis::dumpBlkChain(unsigned ID) {
   }
 }
 
-// void Analysis::dumpTraceBack(unsigned CondChain, unsigned Cond) {
-//   std::vector<const Stmt *> TraceBack = TraceBacks[CondChain][Cond];
-//   if (!TraceBack.empty()) {
-//     outs() << "where: ";
-//     for (const Stmt *S : TraceBack) {
-//       S->dumpPretty(Context);
-//     }
-//   }
-// }
+void Analysis::dumpTraceBack(CondStatus &Cond) {
+  if (!Cond.LastDefStmts.empty() || !Cond.ParmVars.empty()) {
+    errs() << "where: ";
+    for (const Stmt *S : Cond.LastDefStmts) {
+      S->dumpPretty(*Context);
+    }
+    for (const ParmVarDecl *PVD : Cond.ParmVars) {
+      errs() << PVD->getNameAsString() << " is ParmVar, ";
+    }
+  }
+}
 
 std::vector<std::string>
-Analysis::getLastDefStrVec(std::vector<const Stmt *> &TraceBacks) {
+Analysis::getLastDefStrVec(std::set<const Stmt *> &TraceBacks) {
   std::vector<std::string> StrVec;
   std::string Str;
   llvm::raw_string_ostream OS(Str);
@@ -211,6 +259,30 @@ Analysis::getLastDefStrVec(std::vector<const Stmt *> &TraceBacks) {
 //   }
 // }
 
+void Analysis::dumpCondChain(unsigned ID) {
+  unsigned ExitID = Cfg->getExit().getBlockID();
+  auto CondChains = BlkChain[ExitID];
+
+  auto CondChain = CondChains[ID].first;
+  auto Path = CondChains[ID].second;
+  outs() << "CondChain " << ID << ":\n  ";
+  unsigned CondNum = CondChain.size();
+  for (unsigned J = 0; J < CondNum; ++J) {
+    CondStatus &Cond = CondChain[J];
+    if (Cond.Condition) {
+      Cond.Condition->dump(Context);
+      outs() << ": " << (Cond.Flag ? "True" : "False") << " ";
+      dumpTraceBack(Cond);
+      outs() << " -> ";
+    }
+  }
+  outs() << "\n  ";
+  for (CFGBlock *Blk : Path) {
+    outs() << Blk->getBlockID() << " ";
+  }
+  outs() << "\n";
+}
+
 void Analysis::setSignature() {
   Signature = FuncDecl->getReturnType().getAsString() + " ";
   if (FuncDecl->isCXXClassMember()) {
@@ -230,53 +302,85 @@ void Analysis::setSignature() {
   // outs() << "Signature: " << Signature << "\n";
 }
 
-void Analysis::getRequirements() {
-  // std::string FilePath = "/home/chubei/workspace/utgen/requirements.json";
-  // std::error_code EC;
-  // llvm::raw_fd_stream File(FilePath, EC);
-  // if (EC) {
-  //   errs() << "Error: " << EC.message() << "\n";
-  //   return;
-  // }
+void Analysis::dumpResults(std::string ProjectPath, std::string FileName,
+                           std::string ClassName, std::string FuncName) {
+  std::string FilePath = ProjectPath;
+  if (AnalysisType == Type::FILE) {
+    FilePath += "/" + FileName + "_req.json";
+  } else {
+    FilePath += "/" + ClassName + "_" + FuncName + "_req.json";
+  }
+  std::error_code EC;
+  llvm::raw_fd_stream File(FilePath, EC);
+  if (EC) {
+    errs() << "Error: " << EC.message() << "\n";
+    return;
+  }
+  File << Results.dump(4);
+}
 
+std::string formatID(std::string ID) {
+  std::string Str;
+  size_t Size = ID.size();
+  if (Size < 3) {
+    Str = std::string(3 - Size, '0') + ID;
+  } else {
+    Str = ID;
+  }
+  return Str;
+}
+
+void Analysis::setRequire() {
   json Json;
 
-  unsigned ID = Cfg->getExit().getBlockID();
-  CondChains &CondChains = BlkChain[ID];
+  unsigned ExitID = Cfg->getExit().getBlockID();
+  CondChains &CondChains = BlkChain[ExitID];
   unsigned Size = CondChains.size();
   std::string Require;
   llvm::raw_string_ostream OS(Require);
   std::vector<std::string> CondVec;
-  for (unsigned I = 0; I < Size; ++I) {
-    if (ContraChains.find(I) == ContraChains.end()) {
-      std::string CondChainStr = "condchain " + std::to_string(I);
-      Json[CondChainStr]["input"] = "";
-      auto &CondChain = CondChains[I].first;
-      // auto &Path = CondChains[I].second;
+  std::set<CondStatus> CondStatusSet;
+  for (unsigned ID = 0; ID < Size; ++ID) {
+    if (ContraChains.find(ID) == ContraChains.end()) {
+      std::string CondChainStr = formatID(std::to_string(ID));
+      std::string Input = "";
+      int I = 0;
+      for (ParmVarDecl *Param : FuncDecl->parameters()) {
+        if (I++ > 0) {
+          Input += ", ";
+        }
+        Input += Param->getNameAsString() + " is a " + Param->getType().getAsString();
+      }
+      Json[CondChainStr]["input"] = Input;
+      auto &CondChain = CondChains[ID].first;
       unsigned CondNum = CondChain.size();
       for (unsigned J = 0; J < CondNum; ++J) {
         CondStatus &Cond = CondChain[J];
         if (Cond.Condition) {
-          OS << Cond.Condition->getCondStr() << " is ";
-          if (Cond.Condition->isNot())
-            OS << (Cond.Flag ? "false" : "true");
-          else
-            OS << (Cond.Flag ? "true" : "false");
-          OS.flush();
-          Json[CondChainStr]["precondition"].push_back(
-              {{"condition", Require},
-               {"lastdef", getLastDefStrVec(Cond.LastDefStmts)}});
-          Require.clear();
+          if (CondStatusSet.find(Cond) == CondStatusSet.end()) {
+            CondStatusSet.insert(Cond);
+            OS << Cond.Condition->getCondStr() << " is ";
+            if (Cond.Condition->isNot())
+              OS << (Cond.Flag ? "false" : "true");
+            else
+              OS << (Cond.Flag ? "true" : "false");
+            OS.flush();
+            Json[CondChainStr]["precondition"].push_back(
+                {{"condition", Require},
+                 {"lastdef", getLastDefStrVec(Cond.LastDefStmts)}});
+            Require.clear();
+          }
         }
       }
+      CondStatusSet.clear();
       std::string ClassName = "";
       if (FuncDecl->isCXXClassMember()) {
         ClassName =
             cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString();
       }
       Json[CondChainStr]["class"] = ClassName;
-      if (!LastDefList[I].FuncCall.empty()) {
-        auto &FuncCallMap = LastDefList[I].FuncCall;
+      if (!LastDefList[ID].FuncCall.empty()) {
+        auto &FuncCallMap = LastDefList[ID].FuncCall;
         for (auto &Func : FuncCallMap) {
           // TODO: In the order of these CallExpr in the source file
           for (auto &CallExpr : Func.second) {
@@ -296,13 +400,30 @@ void Analysis::getRequirements() {
           }
         }
       }
-      Json[CondChainStr]["result"] = "";
+      std::string Result = "";
+      if (FuncDecl->getReturnType() != Context->VoidTy) {
+        std::vector<CFGBlock *> &Path = CondChains[ID].second;
+        CFGBlock *Blk = Path[Path.size() - 2];
+        if (!Blk->hasNoReturnElement()) {
+          if (std::optional<CFGStmt> S = Blk->back().getAs<CFGStmt>()) {
+            if (S->getStmt()->getStmtClass() == Stmt::ReturnStmtClass) {
+              const ReturnStmt *RS = cast<ReturnStmt>(S->getStmt());
+              RS->getRetValue()->printPretty(OS, nullptr,
+                                             Context->getPrintingPolicy());
+              OS.flush();
+              Result += "a " + FuncDecl->getReturnType().getAsString() + " value: ";
+              Result += Require;
+              Require.clear();
+            }
+          }
+        }
+      }
+      Json[CondChainStr]["result"] = Result;
       Require.clear();
     }
     // break;
   }
   Results[Signature] = Json;
-  // File << Json.dump(4);
 }
 
 void Analysis::simplifyConds() {
@@ -463,14 +584,16 @@ void Analysis::traceBack() {
                                          Cond.Condition->isNot(), Cond.Flag);
               // outs() << "Exam: " << Exam << "\n";
               if (Exam)
-                Cond.LastDefStmts.push_back(LastDefStmt);
+                Cond.LastDefStmts.insert(LastDefStmt);
               else {
-                errs() << "Contradictory CondChain " << I << "\n";
+                errs() << "Contradictory CondChain " << I
+                       << " in traceBack()\n";
+                // dumpCondChain(I);
                 ContraChains.insert(I);
               };
             } else if (DRE->getDecl()->getKind() == Decl::Kind::ParmVar) {
               // handle ParmVar
-              Cond.ParmVars.push_back(cast<ParmVarDecl>(DRE->getDecl()));
+              Cond.ParmVars.insert(cast<ParmVarDecl>(DRE->getDecl()));
             }
           }
         }
@@ -481,6 +604,7 @@ void Analysis::traceBack() {
 }
 
 bool Analysis::checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag) {
+  // Expr->dumpColor();
   bool Res = true;
   switch (Expr->getStmtClass()) {
   default:
@@ -498,6 +622,7 @@ bool Analysis::checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag) {
     }
     break;
   }
+    // TODO: Handle other literal expressions, like Integer, Floating, NullPtr
   }
   return Res;
 }
@@ -608,7 +733,7 @@ const Stmt *Analysis::findLastDefStmt(const DeclRefExpr *DeclRef, Path &Path,
   return TraceBack;
 }
 
-void Analysis::setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
+bool Analysis::setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
                                   const Stmt *S, unsigned int CondChainID) {
   auto &NonFuncCallMap = Info.NonFuncCall;
   bool Flag = Cond.Flag;
@@ -619,12 +744,16 @@ void Analysis::setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
           NonFuncCallMap[S].end()) {
     NonFuncCallMap[S][Cond.Condition->getCondStr()] = Flag;
   } else if (NonFuncCallMap[S][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain " << CondChainID << "\n";
+    errs() << "Contradictory CondChain " << CondChainID
+           << " in setNonFuncCallInfo()\n";
+    // dumpCondChain(CondChainID);
     ContraChains.insert(CondChainID);
+    return false;
   }
+  return true;
 }
 
-void Analysis::setFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
+bool Analysis::setFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
                                const CallExpr *CE, unsigned CondChainID) {
   auto &FuncCallMap = Info.FuncCall;
   std::string FuncName = CE->getDirectCallee()->getNameAsString();
@@ -637,12 +766,16 @@ void Analysis::setFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
           FuncCallMap[FuncName][CE].end()) {
     FuncCallMap[FuncName][CE][Cond.Condition->getCondStr()] = Flag;
   } else if (FuncCallMap[FuncName][CE][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain " << CondChainID << "\n";
+    errs() << "Contradictory CondChain " << CondChainID
+           << " in setFuncCallInfo()\n";
+    // dumpCondChain(CondChainID);
     ContraChains.insert(CondChainID);
+    return false;
   }
+  return true;
 }
 
-void Analysis::setParmVarInfo(LastDefInfo &Info, CondStatus &Cond,
+bool Analysis::setParmVarInfo(LastDefInfo &Info, CondStatus &Cond,
                               const ParmVarDecl *PVD, unsigned CondChainID) {
   auto &ParmVarMap = Info.ParmVar;
   bool Flag = Cond.Flag;
@@ -653,9 +786,13 @@ void Analysis::setParmVarInfo(LastDefInfo &Info, CondStatus &Cond,
           ParmVarMap[PVD].end()) {
     ParmVarMap[PVD][Cond.Condition->getCondStr()] = Flag;
   } else if (ParmVarMap[PVD][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain " << CondChainID << "\n";
+    errs() << "Contradictory CondChain " << CondChainID
+           << " in setParmVarInfo()\n";
+    // dumpCondChain(CondChainID);
     ContraChains.insert(CondChainID);
+    return false;
   }
+  return true;
 }
 
 void Analysis::findContraInLastDef() {
@@ -663,9 +800,11 @@ void Analysis::findContraInLastDef() {
   CondChains &CondChains = BlkChain[ID];
   unsigned Size = CondChains.size();
   LastDefList.resize(Size);
+  bool NoContra;
   for (unsigned I = 0; I < Size; ++I) {
     if (ContraChains.find(I) != ContraChains.end())
       continue;
+    NoContra = true;
     LastDefInfo &Info = LastDefList[I];
     auto &CondChain = CondChains[I].first;
     // auto &Path = CondChains[I].second;
@@ -677,9 +816,13 @@ void Analysis::findContraInLastDef() {
         // handle call expression in the condition
         if (Cond.Condition->containCallExpr()) {
           for (const CallExpr *CE : Cond.Condition->getCallExprList()) {
-            setFuncCallInfo(Info, Cond, CE, I);
+            NoContra = setFuncCallInfo(Info, Cond, CE, I);
+            if (!NoContra)
+              break;
           }
         }
+        if (!NoContra)
+          break;
         // handle last definition and call expression in the trace back
         for (const Stmt *S : Cond.LastDefStmts) {
           // S->dumpColor();
@@ -697,9 +840,14 @@ void Analysis::findContraInLastDef() {
                   // auto Cond = CondChains[I].first[J];
                   if (Init->getStmtClass() == Stmt::CXXMemberCallExprClass ||
                       Init->getStmtClass() == Stmt::CallExprClass) {
-                    setFuncCallInfo(Info, Cond, cast<CallExpr>(Init), I);
+                    NoContra =
+                        setFuncCallInfo(Info, Cond, cast<CallExpr>(Init), I);
+                    if (!NoContra)
+                      break;
                   } else {
-                    setNonFuncCallInfo(Info, Cond, Init, I);
+                    NoContra = setNonFuncCallInfo(Info, Cond, Init, I);
+                    if (!NoContra)
+                      break;
                   }
                 }
               }
@@ -713,19 +861,27 @@ void Analysis::findContraInLastDef() {
               Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
               if (RHS->getStmtClass() == Stmt::CXXMemberCallExprClass ||
                   RHS->getStmtClass() == Stmt::CallExprClass) {
-                setFuncCallInfo(Info, Cond, cast<CallExpr>(RHS), I);
+                NoContra = setFuncCallInfo(Info, Cond, cast<CallExpr>(RHS), I);
               } else {
-                setNonFuncCallInfo(Info, Cond, RHS, I);
+                NoContra = setNonFuncCallInfo(Info, Cond, RHS, I);
               }
             }
             break;
           }
           }
+          if (!NoContra)
+            break;
         }
+        if (!NoContra)
+          break;
         // handle ParmVars
         for (const ParmVarDecl *PVD : Cond.ParmVars) {
-          setParmVarInfo(Info, Cond, PVD, I);
+          NoContra = setParmVarInfo(Info, Cond, PVD, I);
+          if (!NoContra)
+            break;
         }
+        if (!NoContra)
+          break;
       }
     }
     // break;

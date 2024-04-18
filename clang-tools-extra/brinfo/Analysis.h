@@ -17,8 +17,38 @@ class Analysis {
   struct CondStatus {
     BaseCond *Condition = nullptr;
     bool Flag = false;
-    std::vector<const Stmt *> LastDefStmts;
-    std::vector<const ParmVarDecl *> ParmVars;
+    std::set<const Stmt *> LastDefStmts;
+    std::set<const ParmVarDecl *> ParmVars;
+
+    // bool operator==(const CondStatus &RHS) const {
+    //   if (!Condition || !RHS.Condition)
+    //     return Condition == RHS.Condition;
+    //   if (Condition->getCondStr() == RHS.Condition->getCondStr() &&
+    //       Flag == RHS.Flag && LastDefStmts == RHS.LastDefStmts &&
+    //       ParmVars == RHS.ParmVars)
+    //     return true;
+    //   return false;
+    // }
+
+    bool operator<(const CondStatus &RHS) const {
+      if (!Condition || !RHS.Condition)
+        return Condition < RHS.Condition;
+      if (Condition->getCondStr() == RHS.Condition->getCondStr()) {
+        bool Tmp = Flag;
+        bool RHSTmp = RHS.Flag;
+        if (Condition->isNot())
+          Tmp = !Tmp;
+        if (RHS.Condition->isNot())
+          RHSTmp = !RHSTmp;
+        if (Tmp == RHSTmp) {
+          if (LastDefStmts == RHS.LastDefStmts)
+            return ParmVars < RHS.ParmVars;
+          return LastDefStmts < RHS.LastDefStmts;
+        }
+        return Tmp < RHSTmp;
+      }
+      return Condition->getCondStr() < RHS.Condition->getCondStr();
+    }
   };
 
   struct LastDefInfo {
@@ -61,14 +91,32 @@ class Analysis {
   void dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag);
   void dumpBlkChain();
   void dumpBlkChain(unsigned ID);
-  // void dumpTraceBack(unsigned CondChain, unsigned Cond);
-  std::vector<std::string>
-  getLastDefStrVec(std::vector<const Stmt *> &TraceBacks);
+  void dumpTraceBack(CondStatus &Cond);
+  std::vector<std::string> getLastDefStrVec(std::set<const Stmt *> &TraceBacks);
   void simplify(const BinaryOperator *BO, bool Flag);
   void deriveCond(bool Flag, BinaryOperator::Opcode Opcode, const Expr *Known,
                   const Expr *Unknown);
   bool transferCond(const Expr *Expr);
   void setSignature();
+  void getCondChains();
+  // void dumpCondChains();
+  void dumpCondChain(unsigned ID);
+  void simplifyConds();
+  void traceBack();
+  bool checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag);
+  bool examineLastDef(const DeclRefExpr *DeclRef, const Stmt *LastDefStmt,
+                      bool IsNot, bool Flag);
+  const Stmt *findLastDefStmt(const DeclRefExpr *DeclRef, Path &Path,
+                              unsigned Loc);
+  void setRequire();
+  void findContraInLastDef();
+  bool setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond, const Stmt *S,
+                          unsigned CondChainID);
+  bool setFuncCallInfo(LastDefInfo &Info, CondStatus &Cond, const CallExpr *CE,
+                       unsigned CondChainID);
+  bool setParmVarInfo(LastDefInfo &Info, CondStatus &Cond,
+                      const ParmVarDecl *PVD, unsigned CondChainID);
+  void clear();
 
 public:
   Analysis() {}
@@ -80,54 +128,11 @@ public:
   //       {{{nullptr, false, {}, {}}}, {&Cfg->getEntry()}});
   // }
   ~Analysis() {}
-  void init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
-    Cfg = CFG;
-    this->Context = Context;
-    FuncDecl = FD;
-    setSignature();
-    BlkChain.resize(Cfg->getNumBlockIDs());
-    Parent = -1;
-    BlkChain[Cfg->getEntry().getBlockID()].push_back(
-        {{{nullptr, false, {}, {}}}, {&Cfg->getEntry()}});
-  }
-  void clear() {
-    BlkChain.clear();
-    LastDefList.clear();
-    CallExprList.clear();
-    ContraChains.clear();
-    Parent = -1;
-    CondMap.clear();
-    TmpCond = {nullptr, false};
-  }
-  void setType(Type T) {
-    AnalysisType = T;
-    switch (T) {
-    case FILE:
-      Results["type"] = "file";
-      break;
-    case FUNC:
-      Results["type"] = "function";
-      break;
-    }
-  }
-
-  void getCondChains();
-  // void dumpCondChains();
-  void simplifyConds();
-  void traceBack();
-  bool checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag);
-  bool examineLastDef(const DeclRefExpr *DeclRef, const Stmt *LastDefStmt,
-                      bool IsNot, bool Flag);
-  const Stmt *findLastDefStmt(const DeclRefExpr *DeclRef, Path &Path,
-                              unsigned Loc);
-  void getRequirements();
-  void findContraInLastDef();
-  void setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond, const Stmt *S,
-                          unsigned CondChainID);
-  void setFuncCallInfo(LastDefInfo &Info, CondStatus &Cond, const CallExpr *CE,
-                       unsigned CondChainID);
-  void setParmVarInfo(LastDefInfo &Info, CondStatus &Cond,
-                      const ParmVarDecl *PVD, unsigned CondChainID);
+  void setType(Type T);
+  void init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD);
+  void analyze();
+  void dumpResults(std::string ProjectPath, std::string FileName,
+                   std::string ClassName, std::string FuncName);
 };
 
 } // namespace BrInfo
