@@ -12,6 +12,7 @@ add_clang_executable(brinfo
   BrInfo.cpp
   Analysis.cpp
   Condition.cpp
+  CondChain.cpp
   )
 
 clang_target_link_libraries(brinfo

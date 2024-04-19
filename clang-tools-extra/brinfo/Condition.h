@@ -28,13 +28,12 @@ protected:
   std::vector<const CallExpr *> CallExprList;
   void findDeclRefExpr(const Stmt *S);
   void findCallExpr(const Stmt *S);
-  void setCondStr(const ASTContext *Context);
 
 public:
-  BaseCond(const Stmt *Cond, const ASTContext *Context) : Cond(Cond) {
+  BaseCond(const Stmt *Cond) : Cond(Cond) {
     findDeclRefExpr(Cond);
     findCallExpr(Cond);
-    setCondStr(Context);
+    // setCondStr(Context);
   }
   virtual ~BaseCond() { Cond = nullptr; }
   virtual void dump(const ASTContext *Context) = 0;
@@ -48,12 +47,13 @@ public:
     return DeclRefExprList;
   }
   std::vector<const CallExpr *> &getCallExprList() { return CallExprList; }
+  void setCondStr(const ASTContext *Context);
 };
 
 class IfCond : public BaseCond {
 public:
-  IfCond(const Stmt *Cond, const ASTContext *Context)
-      : BaseCond(Cond, Context) {
+  IfCond(const Stmt *Cond)
+      : BaseCond(Cond) {
     // setCondStr(Context);
   }
   virtual ~IfCond() {}
@@ -66,9 +66,9 @@ class CaseCond : public BaseCond {
   Stmt *Case = nullptr;
 
 public:
-  CaseCond(Stmt *Cond, Stmt *Case, const ASTContext *Context)
-      : BaseCond(Cond, Context), Case(Case) {
-    setCondStr(Context);
+  CaseCond(Stmt *Cond, Stmt *Case)
+      : BaseCond(Cond), Case(Case) {
+    // setCondStr(Context);
   }
   virtual ~CaseCond() { Case = nullptr; }
   void dump(const ASTContext *Context) override;
@@ -80,9 +80,9 @@ class DefaultCond : public BaseCond {
   std::vector<Stmt *> Cases;
 
 public:
-  DefaultCond(Stmt *Cond, std::vector<Stmt *> Cases, const ASTContext *Context)
-      : BaseCond(Cond, Context), Cases(Cases) {
-    setCondStr(Context);
+  DefaultCond(Stmt *Cond, std::vector<Stmt *> Cases)
+      : BaseCond(Cond), Cases(Cases) {
+    // setCondStr(Context);
   }
   virtual ~DefaultCond() {}
   void dump(const ASTContext *Context) override;
@@ -92,8 +92,8 @@ public:
 
 class LoopCond : public BaseCond {
 public:
-  LoopCond(Stmt *Cond, const ASTContext *Context) : BaseCond(Cond, Context) {
-    setCondStr(Context);
+  LoopCond(Stmt *Cond) : BaseCond(Cond) {
+    // setCondStr(Context);
   }
   virtual ~LoopCond() {}
   void dump(const ASTContext *Context) override;

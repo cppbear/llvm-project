@@ -1,4 +1,5 @@
 #include "Analysis.h"
+#include "OrderedSet.h"
 #include "clang/Analysis/CFG.h"
 #include <cassert>
 
@@ -10,8 +11,8 @@ void Analysis::clear() {
   FuncDecl = nullptr;
   Signature.clear();
   BlkChain.clear();
-  LastDefList.clear();
-  CallExprList.clear();
+  // LastDefList.clear();
+  // CallExprList.clear();
   ContraChains.clear();
   Parent = -1;
   CondMap.clear();
@@ -37,15 +38,19 @@ void Analysis::init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
   setSignature();
   BlkChain.resize(Cfg->getNumBlockIDs());
   Parent = -1;
+  // BlkChain[Cfg->getEntry().getBlockID()].push_back(
+  //     CondChainInfo(&Cfg->getEntry()));
   BlkChain[Cfg->getEntry().getBlockID()].push_back(
-      {{{nullptr, false, {}, {}}}, {&Cfg->getEntry()}});
+      {{{nullptr, false, {}, {}}}, {&Cfg->getEntry()}, false, {}, {}});
 }
 
 void Analysis::analyze() {
   getCondChains();
-  simplifyConds();
-  traceBack();
-  findContraInLastDef();
+  unsigned ExitID = Cfg->getExit().getBlockID();
+  CondChainList &ChainList = BlkChain[ExitID];
+  for (CondChainInfo &ChainInfo : ChainList) {
+    ChainInfo.analyze(Context);
+  }
   setRequire();
   clear();
 }
@@ -61,12 +66,13 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
   // }
 
   if (Parent != -1 && !BlkChain[Parent].empty()) {
-    std::pair<CondChain, Path> Chain = BlkChain[Parent].back();
-    auto CondChain = Chain.first;
-    CondChain.push_back({Condition, Flag, {}, {}});
-    auto Path = Chain.second;
+    // std::pair<CondChain, Path> Chain = BlkChain[Parent].back();
+    CondChainInfo &ChainInfo = BlkChain[Parent].back();
+    CondChain Chain = ChainInfo.Chain;
+    Chain.push_back({Condition, Flag, {}, {}});
+    BlkPath Path = ChainInfo.Path;
     Path.push_back(Blk);
-    BlkChain[ID].push_back({CondChain, Path});
+    BlkChain[ID].push_back({Chain, Path, false, {}, {}});
   }
 
   Parent = ID;
@@ -83,8 +89,7 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       BaseCond *Cond = nullptr;
       Stmt *InnerCond = Blk->getTerminatorCondition();
       if (InnerCond) {
-        Cond =
-            new IfCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts(), Context);
+        Cond = new IfCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts());
       }
       auto *I = Blk->succ_begin();
       if (Cond) {
@@ -112,7 +117,7 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
           Cases.push_back(Case);
           if (InnerCond) {
             Cond = new CaseCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts(),
-                                Case, Context);
+                                Case);
           }
           dfs(I, Cond, true);
           Parent = ID;
@@ -125,7 +130,7 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       if (DefaultBlk) {
         BaseCond *Cond = nullptr;
         if (InnerCond) {
-          Cond = new DefaultCond(InnerCond, Cases, Context);
+          Cond = new DefaultCond(InnerCond, Cases);
         }
         dfs(DefaultBlk, Cond, false);
         Parent = ID;
@@ -146,8 +151,7 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       BaseCond *Cond = nullptr;
       Stmt *InnerCond = Blk->getTerminatorCondition();
       if (InnerCond) {
-        Cond =
-            new LoopCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts(), Context);
+        Cond = new LoopCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts());
       }
       auto *I = Blk->succ_begin();
       if (InnerCond) {
@@ -186,10 +190,10 @@ void Analysis::dumpBlkChain() {
 
 void Analysis::dumpBlkChain(unsigned ID) {
   outs() << "Block: " << ID << "\n";
-  for (auto &Chain : BlkChain[ID]) {
-    auto CondChain = Chain.first;
-    auto Path = Chain.second;
-    for (auto &Cond : CondChain) {
+  for (CondChainInfo &ChainInfo : BlkChain[ID]) {
+    CondChain Chain = ChainInfo.Chain;
+    BlkPath Path = ChainInfo.Path;
+    for (CondStatus &Cond : Chain) {
       if (Cond.Condition) {
         Cond.Condition->dump(Context);
         outs() << ":=" << (Cond.Flag ? "True" : "False") << " -> ";
@@ -203,17 +207,17 @@ void Analysis::dumpBlkChain(unsigned ID) {
   }
 }
 
-void Analysis::dumpTraceBack(CondStatus &Cond) {
-  if (!Cond.LastDefStmts.empty() || !Cond.ParmVars.empty()) {
-    errs() << "where: ";
-    for (const Stmt *S : Cond.LastDefStmts) {
-      S->dumpPretty(*Context);
-    }
-    for (const ParmVarDecl *PVD : Cond.ParmVars) {
-      errs() << PVD->getNameAsString() << " is ParmVar, ";
-    }
-  }
-}
+// void Analysis::dumpTraceBack(CondStatus &Cond) {
+//   if (!Cond.LastDefStmts.empty() || !Cond.ParmVars.empty()) {
+//     errs() << "where: ";
+//     for (const Stmt *S : Cond.LastDefStmts) {
+//       S->dumpPretty(*Context);
+//     }
+//     for (const ParmVarDecl *PVD : Cond.ParmVars) {
+//       errs() << PVD->getNameAsString() << " is ParmVar, ";
+//     }
+//   }
+// }
 
 std::vector<std::string>
 Analysis::getLastDefStrVec(std::set<const Stmt *> &TraceBacks) {
@@ -259,29 +263,29 @@ Analysis::getLastDefStrVec(std::set<const Stmt *> &TraceBacks) {
 //   }
 // }
 
-void Analysis::dumpCondChain(unsigned ID) {
-  unsigned ExitID = Cfg->getExit().getBlockID();
-  auto CondChains = BlkChain[ExitID];
+// void Analysis::dumpCondChain(unsigned ID) {
+//   unsigned ExitID = Cfg->getExit().getBlockID();
+//   auto CondChains = BlkChain[ExitID];
 
-  auto CondChain = CondChains[ID].first;
-  auto Path = CondChains[ID].second;
-  outs() << "CondChain " << ID << ":\n  ";
-  unsigned CondNum = CondChain.size();
-  for (unsigned J = 0; J < CondNum; ++J) {
-    CondStatus &Cond = CondChain[J];
-    if (Cond.Condition) {
-      Cond.Condition->dump(Context);
-      outs() << ": " << (Cond.Flag ? "True" : "False") << " ";
-      dumpTraceBack(Cond);
-      outs() << " -> ";
-    }
-  }
-  outs() << "\n  ";
-  for (CFGBlock *Blk : Path) {
-    outs() << Blk->getBlockID() << " ";
-  }
-  outs() << "\n";
-}
+//   CondChain CondChain = CondChains[ID].Chain;
+//   BlkPath Path = CondChains[ID].Path;
+//   outs() << "CondChain " << ID << ":\n  ";
+//   unsigned CondNum = CondChain.size();
+//   for (unsigned J = 0; J < CondNum; ++J) {
+//     CondStatus &Cond = CondChain[J];
+//     if (Cond.Condition) {
+//       Cond.Condition->dump(Context);
+//       outs() << ": " << (Cond.Flag ? "True" : "False") << " ";
+//       dumpTraceBack(Cond);
+//       outs() << " -> ";
+//     }
+//   }
+//   outs() << "\n  ";
+//   for (CFGBlock *Blk : Path) {
+//     outs() << Blk->getBlockID() << " ";
+//   }
+//   outs() << "\n";
+// }
 
 void Analysis::setSignature() {
   Signature = FuncDecl->getReturnType().getAsString() + " ";
@@ -334,14 +338,14 @@ void Analysis::setRequire() {
   json Json;
 
   unsigned ExitID = Cfg->getExit().getBlockID();
-  CondChains &CondChains = BlkChain[ExitID];
+  CondChainList &CondChains = BlkChain[ExitID];
   unsigned Size = CondChains.size();
   std::string Require;
   llvm::raw_string_ostream OS(Require);
   std::vector<std::string> CondVec;
   std::set<CondStatus> CondStatusSet;
   for (unsigned ID = 0; ID < Size; ++ID) {
-    if (ContraChains.find(ID) == ContraChains.end()) {
+    if (!CondChains[ID].IsContra) {
       std::string CondChainStr = formatID(std::to_string(ID));
       std::string Input = "";
       int I = 0;
@@ -349,10 +353,11 @@ void Analysis::setRequire() {
         if (I++ > 0) {
           Input += ", ";
         }
-        Input += Param->getNameAsString() + " is a " + Param->getType().getAsString();
+        Input += Param->getNameAsString() + " is a " +
+                 Param->getType().getAsString();
       }
       Json[CondChainStr]["input"] = Input;
-      auto &CondChain = CondChains[ID].first;
+      CondChain &CondChain = CondChains[ID].Chain;
       unsigned CondNum = CondChain.size();
       for (unsigned J = 0; J < CondNum; ++J) {
         CondStatus &Cond = CondChain[J];
@@ -379,30 +384,30 @@ void Analysis::setRequire() {
             cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString();
       }
       Json[CondChainStr]["class"] = ClassName;
-      if (!LastDefList[ID].FuncCall.empty()) {
-        auto &FuncCallMap = LastDefList[ID].FuncCall;
-        for (auto &Func : FuncCallMap) {
-          // TODO: In the order of these CallExpr in the source file
-          for (auto &CallExpr : Func.second) {
-            // CallExpr.first->printPretty(OS, nullptr,
-            //                             Context.getPrintingPolicy());
-            for (auto &Return : CallExpr.second) {
-              OS << Return.first << " is ";
-              OS << (Return.second ? "true" : "false");
-              OS.flush();
-              CondVec.push_back(Require);
-              Require.clear();
-            }
-            Json[CondChainStr]["mock"].push_back(
-                {{"function", Func.first}, {"condition", CondVec}});
-            Require.clear();
-            CondVec.clear();
-          }
-        }
-      }
+      // if (!LastDefList[ID].FuncCall.empty()) {
+      //   auto &FuncCallMap = LastDefList[ID].FuncCall;
+      //   for (auto &Func : FuncCallMap) {
+      //     // TODO: In the order of these CallExpr in the source file
+      //     for (auto &CallExpr : Func.second) {
+      //       // CallExpr.first->printPretty(OS, nullptr,
+      //       //                             Context.getPrintingPolicy());
+      //       for (auto &Return : CallExpr.second) {
+      //         OS << Return.first << " is ";
+      //         OS << (Return.second ? "true" : "false");
+      //         OS.flush();
+      //         CondVec.push_back(Require);
+      //         Require.clear();
+      //       }
+      //       Json[CondChainStr]["mock"].push_back(
+      //           {{"function", Func.first}, {"condition", CondVec}});
+      //       Require.clear();
+      //       CondVec.clear();
+      //     }
+      //   }
+      // }
       std::string Result = "";
       if (FuncDecl->getReturnType() != Context->VoidTy) {
-        std::vector<CFGBlock *> &Path = CondChains[ID].second;
+        BlkPath &Path = CondChains[ID].Path;
         CFGBlock *Blk = Path[Path.size() - 2];
         if (!Blk->hasNoReturnElement()) {
           if (std::optional<CFGStmt> S = Blk->back().getAs<CFGStmt>()) {
@@ -411,7 +416,8 @@ void Analysis::setRequire() {
               RS->getRetValue()->printPretty(OS, nullptr,
                                              Context->getPrintingPolicy());
               OS.flush();
-              Result += "a " + FuncDecl->getReturnType().getAsString() + " value: ";
+              Result +=
+                  "a " + FuncDecl->getReturnType().getAsString() + " value: ";
               Result += Require;
               Require.clear();
             }
@@ -424,468 +430,6 @@ void Analysis::setRequire() {
     // break;
   }
   Results[Signature] = Json;
-}
-
-void Analysis::simplifyConds() {
-  unsigned ID = Cfg->getExit().getBlockID();
-  CondChains &CondChains = BlkChain[ID];
-  unsigned Size = CondChains.size();
-  for (unsigned I = 0; I < Size; ++I) {
-    CondMap.clear();
-    auto &CondChain = CondChains[I].first;
-    for (auto &Cond : CondChain) {
-      if (Cond.Condition) {
-        TmpCond.first = nullptr;
-        const Stmt *S = Cond.Condition->getCond();
-        CondMap[S] = Cond.Flag;
-
-        if (S->getStmtClass() == Stmt::BinaryOperatorClass) {
-          const BinaryOperator *BO = cast<BinaryOperator>(S);
-          if (BO->isLogicalOp()) {
-            simplify(BO, Cond.Flag);
-          }
-        }
-        if (TmpCond.first) {
-          Cond.Condition = TmpCond.first;
-          Cond.Flag = TmpCond.second;
-        }
-      }
-    }
-    // break;
-  }
-}
-
-void Analysis::simplify(const BinaryOperator *BO, bool Flag) {
-  Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
-  Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
-  bool LHSKnown = CondMap.find(LHS) != CondMap.end();
-  bool RHSKnown = CondMap.find(RHS) != CondMap.end();
-  if (LHSKnown && !RHSKnown) {
-    deriveCond(Flag, BO->getOpcode(), LHS, RHS);
-  } else if (!LHSKnown && RHSKnown) {
-    deriveCond(Flag, BO->getOpcode(), RHS, LHS);
-  } else if (!LHSKnown && !RHSKnown) {
-    bool Res = transferCond(LHS) || transferCond(RHS);
-    if (Res) {
-      simplify(BO, Flag);
-    } else {
-      errs() << "Unhandle condition\n";
-    }
-  }
-}
-
-// derive the condition from the parent to the child
-void Analysis::deriveCond(bool Flag, BinaryOperator::Opcode Opcode,
-                          const Expr *Known, const Expr *Unknown) {
-  bool Val = CondMap[Known];
-  switch (Opcode) {
-  case BinaryOperatorKind::BO_LAnd:
-    if (Val) {
-      CondMap[Unknown] = Flag;
-      if (Unknown->getStmtClass() == Stmt::BinaryOperatorClass &&
-          cast<BinaryOperator>(Unknown)->isLogicalOp()) {
-        simplify(cast<BinaryOperator>(Unknown), Flag);
-      } else {
-        const Stmt *S = static_cast<const Stmt *>(Unknown);
-        BaseCond *Cond = new IfCond(S, Context);
-        TmpCond = {Cond, Flag};
-      }
-    } else if (Flag) {
-      errs() << "Contradictory conditions\n";
-    }
-    break;
-  case BinaryOperatorKind::BO_LOr:
-    if (!Val) {
-      CondMap[Unknown] = Flag;
-      if (Unknown->getStmtClass() == Stmt::BinaryOperatorClass &&
-          cast<BinaryOperator>(Unknown)->isLogicalOp()) {
-        simplify(cast<BinaryOperator>(Unknown), Flag);
-      } else {
-        const Stmt *S = static_cast<const Stmt *>(Unknown);
-        BaseCond *Cond = new IfCond(S, Context);
-        TmpCond = {Cond, Flag};
-      }
-    } else if (!Flag) {
-      errs() << "Contradictory conditions\n";
-    }
-    break;
-  default:
-    break;
-  }
-}
-
-// transfer the condition from the children to the parent
-bool Analysis::transferCond(const Expr *Parent) {
-  bool Res = false;
-  if (Parent->getStmtClass() == Stmt::BinaryOperatorClass) {
-    const BinaryOperator *BO = cast<BinaryOperator>(Parent);
-    if (BO->isLogicalOp()) {
-      Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
-      Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
-      if (CondMap.find(LHS) == CondMap.end()) {
-        transferCond(LHS);
-      }
-      if (CondMap.find(RHS) == CondMap.end()) {
-        transferCond(RHS);
-      }
-      bool LHSKnown = CondMap.find(LHS) != CondMap.end();
-      bool RHSKnown = CondMap.find(RHS) != CondMap.end();
-      switch (BO->getOpcode()) {
-      case BinaryOperatorKind::BO_LAnd:
-        if (LHSKnown && RHSKnown) {
-          CondMap[Parent] = CondMap[LHS] && CondMap[RHS];
-          Res = true;
-        } else if ((LHSKnown && !CondMap[LHS]) || (RHSKnown && !CondMap[RHS])) {
-          CondMap[Parent] = false;
-          Res = true;
-        }
-        break;
-      case BinaryOperatorKind::BO_LOr:
-        if (LHSKnown && RHSKnown) {
-          CondMap[Parent] = CondMap[LHS] || CondMap[RHS];
-          Res = true;
-        } else if ((LHSKnown && CondMap[LHS]) || (RHSKnown && CondMap[RHS])) {
-          CondMap[Parent] = true;
-          Res = true;
-        }
-        break;
-      default:
-        break;
-      }
-    }
-  }
-  return Res;
-}
-
-void Analysis::traceBack() {
-  unsigned ID = Cfg->getExit().getBlockID();
-  CondChains &CondChains = BlkChain[ID];
-  unsigned Size = CondChains.size();
-  for (unsigned I = 0; I < Size; ++I) {
-    auto &CondChain = CondChains[I].first;
-    auto &Path = CondChains[I].second;
-    // outs() << "CondChain " << I << ":\n";
-    unsigned CondNum = CondChain.size();
-    for (unsigned J = 0; J < CondNum; ++J) {
-      CondStatus &Cond = CondChain[J];
-      if (Cond.Condition) {
-        if (Cond.Condition->containDeclRefExpr()) {
-          for (const DeclRefExpr *DRE : Cond.Condition->getDeclRefExprList()) {
-            const Stmt *LastDefStmt = findLastDefStmt(DRE, Path, J);
-            if (LastDefStmt) {
-              // outs() << "Condition:\n";
-              // Cond.Condition->getCond()->dumpColor();
-              // outs() << "Value: " << (Cond.Flag ? "True" : "False") << "\n";
-              // outs() << "DeclRef:\n";
-              // DRE->dumpColor();
-              // outs() << "TraceBack:\n";
-              // LastDefStmt->dumpColor();
-              bool Exam = examineLastDef(DRE, LastDefStmt,
-                                         Cond.Condition->isNot(), Cond.Flag);
-              // outs() << "Exam: " << Exam << "\n";
-              if (Exam)
-                Cond.LastDefStmts.insert(LastDefStmt);
-              else {
-                errs() << "Contradictory CondChain " << I
-                       << " in traceBack()\n";
-                // dumpCondChain(I);
-                ContraChains.insert(I);
-              };
-            } else if (DRE->getDecl()->getKind() == Decl::Kind::ParmVar) {
-              // handle ParmVar
-              Cond.ParmVars.insert(cast<ParmVarDecl>(DRE->getDecl()));
-            }
-          }
-        }
-      }
-    }
-    // break;
-  }
-}
-
-bool Analysis::checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag) {
-  // Expr->dumpColor();
-  bool Res = true;
-  switch (Expr->getStmtClass()) {
-  default:
-    break;
-  case Stmt::CXXBoolLiteralExprClass: {
-    const CXXBoolLiteralExpr *BLE = cast<CXXBoolLiteralExpr>(Expr);
-    if (IsNot) {
-      if (Flag == BLE->getValue()) {
-        Res = false;
-      }
-    } else {
-      if (Flag != BLE->getValue()) {
-        Res = false;
-      }
-    }
-    break;
-  }
-    // TODO: Handle other literal expressions, like Integer, Floating, NullPtr
-  }
-  return Res;
-}
-
-bool Analysis::examineLastDef(const DeclRefExpr *DeclRef,
-                              const Stmt *LastDefStmt, bool IsNot, bool Flag) {
-  bool Res = true;
-  switch (LastDefStmt->getStmtClass()) {
-  default:
-    break;
-  case Stmt::DeclStmtClass: {
-    const DeclStmt *DS = cast<DeclStmt>(LastDefStmt);
-    for (const Decl *D : DS->decls()) {
-      if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
-        if (VD == DeclRef->getDecl()) {
-          Res = checkLiteralExpr(VD->getInit()->IgnoreParenImpCasts(), IsNot,
-                                 Flag);
-        }
-      }
-    }
-    break;
-  }
-  case Stmt::BinaryOperatorClass: {
-    const BinaryOperator *BO = cast<BinaryOperator>(LastDefStmt);
-    if (BO->isAssignmentOp()) {
-      Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
-      if (LHS->getStmtClass() == Stmt::DeclRefExprClass) {
-        DeclRefExpr *DRE = cast<DeclRefExpr>(LHS);
-        if (DRE->getDecl() == DeclRef->getDecl()) {
-          Res = checkLiteralExpr(BO->getRHS()->IgnoreParenImpCasts(), IsNot,
-                                 Flag);
-        }
-      }
-    }
-    break;
-  }
-  }
-  return Res;
-}
-
-const Stmt *Analysis::findLastDefStmt(const DeclRefExpr *DeclRef, Path &Path,
-                                      unsigned Loc) {
-  // outs() << "DeclRefExpr: ";
-  // DeclRef->dumpPretty(Context);
-  // outs() << "\n";
-  bool Found = false;
-  const Stmt *TraceBack = nullptr;
-  for (auto It = Path.rend() - Loc; It != Path.rend() && !Found; ++It) {
-    CFGBlock *Blk = *It;
-    CFGElement *E = Blk->rbegin();
-    if (Blk->getTerminator().isValid()) {
-      E = E + 1;
-    }
-    for (; E != Blk->rend() && !Found; ++E) {
-      if (std::optional<CFGStmt> S = E->getAs<CFGStmt>()) {
-        const Stmt *Stmt = S->getStmt();
-        // Stmt->dumpColor();
-        switch (Stmt->getStmtClass()) {
-        default:
-          // errs() << "handleDeclRefExpr() unhandle: " <<
-          // Stmt->getStmtClassName()
-          //        << "\n";
-          // Stmt->dumpColor();
-          break;
-        // case Stmt::CallExprClass: {
-        //   errs() << "handleDeclRefExpr() unhandle: CallExpr\n";
-        //   break;
-        // }
-        // case Stmt::CXXMemberCallExprClass: {
-        //   errs() << "handleDeclRefExpr() unhandle: CXXMemberCallExpr\n";
-        //   break;
-        // }
-        case Stmt::DeclStmtClass: {
-          const DeclStmt *DS = cast<DeclStmt>(Stmt);
-          for (const Decl *D : DS->decls()) {
-            if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
-              if (VD == DeclRef->getDecl()) {
-                // outs() << "VarDecl:\n";
-                // DS->dumpPretty(Context);
-                Found = true;
-                TraceBack = DS;
-              }
-            }
-          }
-          break;
-        }
-        case Stmt::BinaryOperatorClass: {
-          const BinaryOperator *BO = cast<BinaryOperator>(Stmt);
-          if (BO->isAssignmentOp()) {
-            Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
-            if (LHS->getStmtClass() == Stmt::DeclRefExprClass) {
-              DeclRefExpr *DRE = cast<DeclRefExpr>(LHS);
-              if (DRE->getDecl() == DeclRef->getDecl()) {
-                // outs() << "Assignment:\n";
-                // BO->dumpPretty(Context);
-                // outs() << "\n";
-                Found = true;
-                TraceBack = BO;
-              }
-            }
-          }
-          break;
-        }
-        }
-      }
-    }
-  }
-  return TraceBack;
-}
-
-bool Analysis::setNonFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
-                                  const Stmt *S, unsigned int CondChainID) {
-  auto &NonFuncCallMap = Info.NonFuncCall;
-  bool Flag = Cond.Flag;
-  if (Cond.Condition->isNot())
-    Flag = !Flag;
-  if (NonFuncCallMap.find(S) == NonFuncCallMap.end() ||
-      NonFuncCallMap[S].find(Cond.Condition->getCondStr()) ==
-          NonFuncCallMap[S].end()) {
-    NonFuncCallMap[S][Cond.Condition->getCondStr()] = Flag;
-  } else if (NonFuncCallMap[S][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain " << CondChainID
-           << " in setNonFuncCallInfo()\n";
-    // dumpCondChain(CondChainID);
-    ContraChains.insert(CondChainID);
-    return false;
-  }
-  return true;
-}
-
-bool Analysis::setFuncCallInfo(LastDefInfo &Info, CondStatus &Cond,
-                               const CallExpr *CE, unsigned CondChainID) {
-  auto &FuncCallMap = Info.FuncCall;
-  std::string FuncName = CE->getDirectCallee()->getNameAsString();
-  bool Flag = Cond.Flag;
-  if (Cond.Condition->isNot())
-    Flag = !Flag;
-  if (FuncCallMap.find(FuncName) == FuncCallMap.end() ||
-      FuncCallMap[FuncName].find(CE) == FuncCallMap[FuncName].end() ||
-      FuncCallMap[FuncName][CE].find(Cond.Condition->getCondStr()) ==
-          FuncCallMap[FuncName][CE].end()) {
-    FuncCallMap[FuncName][CE][Cond.Condition->getCondStr()] = Flag;
-  } else if (FuncCallMap[FuncName][CE][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain " << CondChainID
-           << " in setFuncCallInfo()\n";
-    // dumpCondChain(CondChainID);
-    ContraChains.insert(CondChainID);
-    return false;
-  }
-  return true;
-}
-
-bool Analysis::setParmVarInfo(LastDefInfo &Info, CondStatus &Cond,
-                              const ParmVarDecl *PVD, unsigned CondChainID) {
-  auto &ParmVarMap = Info.ParmVar;
-  bool Flag = Cond.Flag;
-  if (Cond.Condition->isNot())
-    Flag = !Flag;
-  if (ParmVarMap.find(PVD) == ParmVarMap.end() ||
-      ParmVarMap[PVD].find(Cond.Condition->getCondStr()) ==
-          ParmVarMap[PVD].end()) {
-    ParmVarMap[PVD][Cond.Condition->getCondStr()] = Flag;
-  } else if (ParmVarMap[PVD][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain " << CondChainID
-           << " in setParmVarInfo()\n";
-    // dumpCondChain(CondChainID);
-    ContraChains.insert(CondChainID);
-    return false;
-  }
-  return true;
-}
-
-void Analysis::findContraInLastDef() {
-  unsigned ID = Cfg->getExit().getBlockID();
-  CondChains &CondChains = BlkChain[ID];
-  unsigned Size = CondChains.size();
-  LastDefList.resize(Size);
-  bool NoContra;
-  for (unsigned I = 0; I < Size; ++I) {
-    if (ContraChains.find(I) != ContraChains.end())
-      continue;
-    NoContra = true;
-    LastDefInfo &Info = LastDefList[I];
-    auto &CondChain = CondChains[I].first;
-    // auto &Path = CondChains[I].second;
-    // outs() << "CondChain " << I << ":\n";
-    unsigned CondNum = CondChain.size();
-    for (unsigned J = 0; J < CondNum; ++J) {
-      CondStatus &Cond = CondChain[J];
-      if (Cond.Condition) {
-        // handle call expression in the condition
-        if (Cond.Condition->containCallExpr()) {
-          for (const CallExpr *CE : Cond.Condition->getCallExprList()) {
-            NoContra = setFuncCallInfo(Info, Cond, CE, I);
-            if (!NoContra)
-              break;
-          }
-        }
-        if (!NoContra)
-          break;
-        // handle last definition and call expression in the trace back
-        for (const Stmt *S : Cond.LastDefStmts) {
-          // S->dumpColor();
-          switch (S->getStmtClass()) {
-          default:
-            // errs() << "traceBack() unhandle: " << S->getStmtClassName() <<
-            // "\n"; S->dumpColor();
-            break;
-          case Stmt::DeclStmtClass: {
-            const DeclStmt *DS = cast<DeclStmt>(S);
-            for (const Decl *D : DS->decls()) {
-              if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
-                const Expr *Init = VD->getInit()->IgnoreParenImpCasts();
-                if (Init) {
-                  // auto Cond = CondChains[I].first[J];
-                  if (Init->getStmtClass() == Stmt::CXXMemberCallExprClass ||
-                      Init->getStmtClass() == Stmt::CallExprClass) {
-                    NoContra =
-                        setFuncCallInfo(Info, Cond, cast<CallExpr>(Init), I);
-                    if (!NoContra)
-                      break;
-                  } else {
-                    NoContra = setNonFuncCallInfo(Info, Cond, Init, I);
-                    if (!NoContra)
-                      break;
-                  }
-                }
-              }
-            }
-            break;
-          }
-          case Stmt::BinaryOperatorClass: {
-            const BinaryOperator *BO = cast<BinaryOperator>(S);
-            if (BO->isAssignmentOp()) {
-              // Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
-              Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
-              if (RHS->getStmtClass() == Stmt::CXXMemberCallExprClass ||
-                  RHS->getStmtClass() == Stmt::CallExprClass) {
-                NoContra = setFuncCallInfo(Info, Cond, cast<CallExpr>(RHS), I);
-              } else {
-                NoContra = setNonFuncCallInfo(Info, Cond, RHS, I);
-              }
-            }
-            break;
-          }
-          }
-          if (!NoContra)
-            break;
-        }
-        if (!NoContra)
-          break;
-        // handle ParmVars
-        for (const ParmVarDecl *PVD : Cond.ParmVars) {
-          NoContra = setParmVarInfo(Info, Cond, PVD, I);
-          if (!NoContra)
-            break;
-        }
-        if (!NoContra)
-          break;
-      }
-    }
-    // break;
-  }
 }
 
 } // namespace BrInfo

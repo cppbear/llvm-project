@@ -73,6 +73,8 @@ void BaseCond::findCallExpr(const Stmt *S) {
 }
 
 void BaseCond::setCondStr(const ASTContext *Context) {
+  if (!CondStr.empty())
+    return;
   llvm::raw_string_ostream OS(CondStr);
   if (Cond->getStmtClass() == Stmt::BinaryOperatorClass &&
       cast<BinaryOperator>(Cond)->getOpcode() == BinaryOperatorKind::BO_NE) {
