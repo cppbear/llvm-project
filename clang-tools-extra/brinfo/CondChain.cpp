@@ -32,7 +32,9 @@ OrderedSet<const CallExpr *> getCallExpr(const Stmt *S) {
   return Set;
 }
 
-bool checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag) {
+bool checkLiteralExpr(const Expr *Expr, CondStatus &CondStatus) {
+  bool IsNot = CondStatus.Condition->isNot();
+  bool Flag = CondStatus.Flag;
   // Expr->dumpColor();
   bool Res = true;
   switch (Expr->getStmtClass()) {
@@ -40,18 +42,22 @@ bool checkLiteralExpr(const Expr *Expr, bool IsNot, bool Flag) {
     break;
   case Stmt::CXXBoolLiteralExprClass: {
     const CXXBoolLiteralExpr *BLE = cast<CXXBoolLiteralExpr>(Expr);
-    if (IsNot) {
-      if (Flag == BLE->getValue()) {
-        Res = false;
-      }
-    } else {
-      if (Flag != BLE->getValue()) {
-        Res = false;
-      }
+    if ((Flag == BLE->getValue()) == IsNot) {
+      Res = false;
     }
     break;
   }
-    // TODO: Handle other literal expressions, like Integer, Floating, NullPtr
+  // TODO: Handle other literal expressions, like Integer, Floating
+  case Stmt::GNUNullExprClass:
+  case Stmt::CXXNullPtrLiteralExprClass: {
+    std::string CondStr = CondStatus.Condition->getCondStr();
+    bool ContainNull = CondStr.find("nullptr") != std::string::npos ||
+                       CondStr.find("NULL") != std::string::npos;
+    if ((ContainNull == Flag) == IsNot) {
+      Res = false;
+    }
+    break;
+  }
   }
   return Res;
 }
@@ -292,8 +298,7 @@ void CondChainInfo::traceBack() {
             // DRE->dumpColor();
             // outs() << "TraceBack:\n";
             // LastDefStmt->dumpColor();
-            bool Exam = examineLastDef(DRE, LastDefStmt,
-                                       Cond.Condition->isNot(), Cond.Flag);
+            bool Exam = examineLastDef(DRE, LastDefStmt, Cond);
             // outs() << "Exam: " << Exam << "\n";
             if (Exam)
               Cond.LastDefStmts.insert(LastDefStmt);
@@ -301,7 +306,7 @@ void CondChainInfo::traceBack() {
               // errs() << "Contradictory CondChain in traceBack()\n";
               // dumpCondChain(I);
               IsContra = true;
-            };
+            }
           } else if (DRE->getDecl()->getKind() == Decl::Kind::ParmVar) {
             // handle ParmVar
             Cond.ParmVars.insert(cast<ParmVarDecl>(DRE->getDecl()));
@@ -313,6 +318,8 @@ void CondChainInfo::traceBack() {
 }
 
 void CondChainInfo::findContra() {
+  if (IsContra)
+    return;
   unsigned CondNum = Chain.size();
   for (unsigned J = 0; J < CondNum; ++J) {
     CondStatus &Cond = Chain[J];
@@ -509,8 +516,8 @@ const Stmt *CondChainInfo::findLastDefStmt(const DeclRefExpr *DeclRef,
 }
 
 bool CondChainInfo::examineLastDef(const DeclRefExpr *DeclRef,
-                                   const Stmt *LastDefStmt, bool IsNot,
-                                   bool Flag) {
+                                   const Stmt *LastDefStmt,
+                                   CondStatus &CondStatus) {
   bool Res = true;
   switch (LastDefStmt->getStmtClass()) {
   default:
@@ -520,8 +527,8 @@ bool CondChainInfo::examineLastDef(const DeclRefExpr *DeclRef,
     for (const Decl *D : DS->decls()) {
       if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD == DeclRef->getDecl()) {
-          Res = checkLiteralExpr(VD->getInit()->IgnoreParenImpCasts(), IsNot,
-                                 Flag);
+          Res = checkLiteralExpr(VD->getInit()->IgnoreParenImpCasts(),
+                                 CondStatus);
           break;
         }
       }
@@ -530,7 +537,7 @@ bool CondChainInfo::examineLastDef(const DeclRefExpr *DeclRef,
   }
   case Stmt::BinaryOperatorClass: {
     const BinaryOperator *BO = cast<BinaryOperator>(LastDefStmt);
-    Res = checkLiteralExpr(BO->getRHS()->IgnoreParenImpCasts(), IsNot, Flag);
+    Res = checkLiteralExpr(BO->getRHS()->IgnoreParenImpCasts(), CondStatus);
     break;
   }
   }
@@ -607,8 +614,9 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
       ConditionsList.push_back(CondVec);
       CondVec.clear();
     }
-    Json["mock"].push_back(
-        {{"function", FuncName}, {"conditions", ConditionsList}, {"return", FD->getReturnType().getAsString()}});
+    Json["mock"].push_back({{"function", FuncName},
+                            {"conditions", ConditionsList},
+                            {"return", FD->getReturnType().getAsString()}});
     ConditionsList.clear();
   }
 

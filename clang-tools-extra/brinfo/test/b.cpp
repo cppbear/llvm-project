@@ -1,5 +1,10 @@
 #include <iostream>
 
+class Reader {
+public:
+  void readComment();
+};
+
 int foo() { return 2; }
 
 int bar() { return 3; }
@@ -15,12 +20,9 @@ int bar() { return 3; }
 //   int s = foo() - bar();
 // }
 
-void readComment() {
-  int succ = foo();
-  if (succ == 2) {
-    std::cout << "Success" << std::endl;
-  }
-  if (succ != 2) {
-    std::cout << "Failed" << std::endl;
+void Reader::readComment() {
+  int *succ = NULL;
+  if (succ == nullptr) {
+    // std::cout << "succ is nullptr" << std::endl;
   }
 }

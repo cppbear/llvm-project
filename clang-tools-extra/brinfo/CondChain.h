@@ -92,7 +92,7 @@ struct CondChainInfo {
 
   const Stmt *findLastDefStmt(const DeclRefExpr *DeclRef, unsigned Loc);
   bool examineLastDef(const DeclRefExpr *DeclRef, const Stmt *LastDefStmt,
-                      bool IsNot, bool Flag);
+                      CondStatus &CondStatus);
 
   void dumpFuncCallInfo();
   void dump(ASTContext *Context, unsigned Indent = 0);
