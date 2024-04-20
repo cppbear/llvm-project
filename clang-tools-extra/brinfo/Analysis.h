@@ -1,9 +1,7 @@
 #include "CondChain.h"
-#include "nlohmann/json.hpp"
 
 using namespace clang;
 using namespace llvm;
-using json = nlohmann::json;
 
 namespace BrInfo {
 
@@ -26,7 +24,7 @@ private:
 
   void setSignature();
   void extractCondChains();
-  void setRequire();
+  void condChainsToReqs();
   void clear();
 
   void dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag);
@@ -38,8 +36,8 @@ public:
   void setType(AnalysisType T);
   void init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD);
   void analyze();
-  void dumpResults(std::string ProjectPath, std::string FileName,
-                   std::string ClassName, std::string FuncName);
+  void dumpReqToJson(std::string ProjectPath, std::string FileName,
+                     std::string ClassName, std::string FuncName);
 };
 
 } // namespace BrInfo

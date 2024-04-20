@@ -45,18 +45,19 @@ void Analysis::analyze() {
   for (CondChainInfo &ChainInfo : ChainList) {
     ChainInfo.analyze(Context);
   }
-  dumpCondChains();
-  setRequire();
+  // dumpCondChains();
+  condChainsToReqs();
   clear();
 }
 
-void Analysis::dumpResults(std::string ProjectPath, std::string FileName,
-                           std::string ClassName, std::string FuncName) {
+void Analysis::dumpReqToJson(std::string ProjectPath, std::string FileName,
+                             std::string ClassName, std::string FuncName) {
   std::string FilePath = ProjectPath;
   if (Type == AnalysisType::FILE) {
     FilePath += "/" + FileName + "_req.json";
   } else {
-    FilePath += "/" + ClassName + "_" + FuncName + "_req.json";
+    FilePath += "/" + (ClassName.empty() ? "" : ClassName + "_") + FuncName +
+                "_req.json";
   }
   std::error_code EC;
   llvm::raw_fd_stream File(FilePath, EC);
@@ -88,100 +89,41 @@ void Analysis::setSignature() {
 
 void Analysis::extractCondChains() { dfs(&Cfg->getEntry(), nullptr, false); }
 
-void Analysis::setRequire() {
+void Analysis::condChainsToReqs() {
   json Json;
 
   unsigned ExitID = Cfg->getExit().getBlockID();
   CondChainList &CondChains = BlkChain[ExitID];
   unsigned Size = CondChains.size();
-  std::string Require;
-  llvm::raw_string_ostream OS(Require);
-  std::vector<std::string> CondVec;
-  std::set<CondStatus> CondStatusSet;
-  for (unsigned ID = 0; ID < Size; ++ID) {
-    if (!CondChains[ID].IsContra) {
-      std::string CondChainStr = formatID(std::to_string(ID));
-      std::string Input = "";
-      int I = 0;
-      for (ParmVarDecl *Param : FuncDecl->parameters()) {
-        if (I++ > 0) {
-          Input += ", ";
-        }
-        Input += Param->getNameAsString() + " is a " +
-                 Param->getType().getAsString();
-      }
-      Json[CondChainStr]["input"] = Input;
-      CondChain &CondChain = CondChains[ID].Chain;
-      unsigned CondNum = CondChain.size();
-      for (unsigned J = 0; J < CondNum; ++J) {
-        CondStatus &Cond = CondChain[J];
-        if (Cond.Condition) {
-          if (CondStatusSet.find(Cond) == CondStatusSet.end()) {
-            CondStatusSet.insert(Cond);
-            OS << Cond.Condition->getCondStr() << " is ";
-            if (Cond.Condition->isNot())
-              OS << (Cond.Flag ? "false" : "true");
-            else
-              OS << (Cond.Flag ? "true" : "false");
-            OS.flush();
-            Json[CondChainStr]["precondition"].push_back(
-                {{"condition", Require},
-                 {"lastdef", Cond.getLastDefStrVec(Context)}});
-            Require.clear();
-          }
-        }
-      }
-      CondStatusSet.clear();
-      std::string ClassName = "";
-      if (FuncDecl->isCXXClassMember()) {
-        ClassName =
-            cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString();
-      }
-      Json[CondChainStr]["class"] = ClassName;
-      // if (!LastDefList[ID].FuncCall.empty()) {
-      //   auto &FuncCallMap = LastDefList[ID].FuncCall;
-      //   for (auto &Func : FuncCallMap) {
-      //     // TODO: In the order of these CallExpr in the source file
-      //     for (auto &CallExpr : Func.second) {
-      //       // CallExpr.first->printPretty(OS, nullptr,
-      //       //                             Context.getPrintingPolicy());
-      //       for (auto &Return : CallExpr.second) {
-      //         OS << Return.first << " is ";
-      //         OS << (Return.second ? "true" : "false");
-      //         OS.flush();
-      //         CondVec.push_back(Require);
-      //         Require.clear();
-      //       }
-      //       Json[CondChainStr]["mock"].push_back(
-      //           {{"function", Func.first}, {"condition", CondVec}});
-      //       Require.clear();
-      //       CondVec.clear();
-      //     }
-      //   }
-      // }
-      std::string Result = "";
-      if (FuncDecl->getReturnType() != Context->VoidTy) {
-        BlkPath &Path = CondChains[ID].Path;
-        CFGBlock *Blk = Path[Path.size() - 2];
-        if (!Blk->hasNoReturnElement()) {
-          if (std::optional<CFGStmt> S = Blk->back().getAs<CFGStmt>()) {
-            if (S->getStmt()->getStmtClass() == Stmt::ReturnStmtClass) {
-              const ReturnStmt *RS = cast<ReturnStmt>(S->getStmt());
-              RS->getRetValue()->printPretty(OS, nullptr,
-                                             Context->getPrintingPolicy());
-              OS.flush();
-              Result +=
-                  "a " + FuncDecl->getReturnType().getAsString() + " value: ";
-              Result += Require;
-              Require.clear();
-            }
-          }
-        }
-      }
-      Json[CondChainStr]["result"] = Result;
-      Require.clear();
+
+  std::string Input = "";
+  int I = 0;
+  for (ParmVarDecl *Param : FuncDecl->parameters()) {
+    if (I++ > 0) {
+      Input += ", ";
     }
-    // break;
+    Input +=
+        Param->getNameAsString() + " is a " + Param->getType().getAsString();
+  }
+  std::string ClassName = "";
+  if (FuncDecl->isCXXClassMember()) {
+    ClassName = cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString();
+  }
+
+  for (unsigned ID = 0; ID < Size; ++ID) {
+    if (CondChains[ID].IsContra)
+      continue;
+    std::string CondChainStr = formatID(std::to_string(ID));
+    std::string Result = "";
+    if (FuncDecl->getReturnType() != Context->VoidTy) {
+      Result = CondChains[ID].getReturnStr(
+          Context, FuncDecl->getReturnType().getAsString());
+    }
+    json J = CondChains[ID].toTestReqs(Context);
+    J["class"] = ClassName;
+    J["input"] = Input;
+    J["result"] = Result;
+    Json[CondChainStr] = J;
   }
   Results[Signature] = Json;
 }

@@ -101,7 +101,7 @@ inline int run(ClangTool &Tool) {
     Finder.addMatcher(FuncMatcher, &FuncAnalyzer);
   }
   int Res = Tool.run(newFrontendActionFactory(&Finder).get());
-  Analyzer.dumpResults(ProjectPath, FileName, ClassName, FunctionName);
+  Analyzer.dumpReqToJson(ProjectPath, FileName, ClassName, FunctionName);
   return Res;
 }
 

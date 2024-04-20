@@ -164,10 +164,20 @@ void simplify(CondSimp &CondSimp, const BinaryOperator *BO, bool Flag) {
   }
 }
 
+std::string CondStatus::toString() {
+  std::string Str = "";
+  Str += Condition->getCondStr() + " is ";
+  if (Condition->isNot())
+    Str += (Flag ? "false" : "true");
+  else
+    Str += (Flag ? "true" : "false");
+  return Str;
+}
+
 StringList CondStatus::getLastDefStrVec(ASTContext *Context) {
   StringList StrVec;
   std::string Str;
-  llvm::raw_string_ostream OS(Str);
+  raw_string_ostream OS(Str);
   if (!LastDefStmts.empty()) {
     for (const Stmt *S : LastDefStmts) {
       S->printPretty(OS, nullptr, Context->getPrintingPolicy());
@@ -288,7 +298,7 @@ void CondChainInfo::traceBack() {
             if (Exam)
               Cond.LastDefStmts.insert(LastDefStmt);
             else {
-              errs() << "Contradictory CondChain in traceBack()\n";
+              // errs() << "Contradictory CondChain in traceBack()\n";
               // dumpCondChain(I);
               IsContra = true;
             };
@@ -387,7 +397,7 @@ bool CondChainInfo::setFuncCallInfo(CondStatus &Cond, const CallExpr *CE) {
           CallExprInfo.CondInfos.end()) {
         CallExprInfo.CondInfos[Cond.Condition->getCondStr()] = Flag;
       } else if (CallExprInfo.CondInfos[Cond.Condition->getCondStr()] != Flag) {
-        errs() << "Contradictory CondChain in setFuncCallInfo()\n";
+        // errs() << "Contradictory CondChain in setFuncCallInfo()\n";
         return false;
       }
       break;
@@ -405,7 +415,7 @@ bool CondChainInfo::setDefInfo(CondStatus &Cond, const Stmt *S) {
       DefInfoMap[S].find(Cond.Condition->getCondStr()) == DefInfoMap[S].end()) {
     DefInfoMap[S][Cond.Condition->getCondStr()] = Flag;
   } else if (DefInfoMap[S][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain in setDefInfo()\n";
+    // errs() << "Contradictory CondChain in setDefInfo()\n";
     return false;
   }
   return true;
@@ -421,7 +431,7 @@ bool CondChainInfo::setParmInfo(CondStatus &Cond, const ParmVarDecl *PVD) {
           ParmInfoMap[PVD].end()) {
     ParmInfoMap[PVD][Cond.Condition->getCondStr()] = Flag;
   } else if (ParmInfoMap[PVD][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain in setParmVarInfo()\n";
+    // errs() << "Contradictory CondChain in setParmVarInfo()\n";
     return false;
   }
   return true;
@@ -562,6 +572,67 @@ void CondChainInfo::dump(ASTContext *Context, unsigned Indent) {
     errs() << Blk->getBlockID();
   }
   errs() << "\n";
+}
+
+json CondChainInfo::toTestReqs(ASTContext *Context) {
+  json Json;
+
+  std::set<CondStatus> CondStatusSet;
+  for (CondStatus &Cond : Chain) {
+    if (Cond.Condition) {
+      if (CondStatusSet.find(Cond) == CondStatusSet.end()) {
+        CondStatusSet.insert(Cond);
+        Json["precondition"].push_back(
+            {{"condition", Cond.toString()},
+             {"lastdef", Cond.getLastDefStrVec(Context)}});
+      }
+    }
+  }
+  CondStatusSet.clear();
+
+  std::vector<StringList> ConditionsList;
+  StringList CondVec;
+  for (auto &FuncCall : FuncCallInfo) {
+    const FunctionDecl *FD = FuncCall.first;
+    std::string FuncName = FD->getNameAsString();
+    std::vector<CallExprInfo> &CallExprInfoList = FuncCall.second;
+    for (CallExprInfo &CallExprInfo : CallExprInfoList) {
+      for (auto &CondInfo : CallExprInfo.CondInfos) {
+        std::string Condition = CondInfo.first;
+        bool Flag = CondInfo.second;
+        Condition += " is ";
+        Condition += (Flag ? "true" : "false");
+        CondVec.push_back(Condition);
+      }
+      ConditionsList.push_back(CondVec);
+      CondVec.clear();
+    }
+    Json["mock"].push_back(
+        {{"function", FuncName}, {"conditions", ConditionsList}, {"return", FD->getReturnType().getAsString()}});
+    ConditionsList.clear();
+  }
+
+  return Json;
+}
+
+std::string CondChainInfo::getReturnStr(ASTContext *Context,
+                                        std::string ReturnType) {
+  std::string Result = "";
+  std::string Str;
+  raw_string_ostream OS(Str);
+  CFGBlock *Blk = Path[Path.size() - 2];
+  if (!Blk->hasNoReturnElement()) {
+    if (std::optional<CFGStmt> S = Blk->back().getAs<CFGStmt>()) {
+      if (S->getStmt()->getStmtClass() == Stmt::ReturnStmtClass) {
+        const ReturnStmt *RS = cast<ReturnStmt>(S->getStmt());
+        RS->getRetValue()->printPretty(OS, nullptr,
+                                       Context->getPrintingPolicy());
+        OS.flush();
+        Result += "a " + ReturnType + " value: " + Str;
+      }
+    }
+  }
+  return Result;
 }
 
 } // namespace BrInfo

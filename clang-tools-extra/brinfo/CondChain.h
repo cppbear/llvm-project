@@ -1,8 +1,10 @@
 #include "Condition.h"
+#include "nlohmann/json.hpp"
 #include <set>
 
 using namespace clang;
 using namespace llvm;
+using json = nlohmann::json;
 
 namespace BrInfo {
 
@@ -44,6 +46,7 @@ struct CondStatus {
     return Condition->getCondStr() < RHS.Condition->getCondStr();
   }
 
+  std::string toString();
   StringList getLastDefStrVec(ASTContext *Context);
 
   void dump(ASTContext *Context);
@@ -93,6 +96,8 @@ struct CondChainInfo {
 
   void dumpFuncCallInfo();
   void dump(ASTContext *Context, unsigned Indent = 0);
+  json toTestReqs(ASTContext *Context);
+  std::string getReturnStr(ASTContext *Context, std::string ReturnType);
 };
 
 struct CondSimp {
