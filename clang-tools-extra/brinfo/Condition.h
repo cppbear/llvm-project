@@ -1,8 +1,4 @@
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/Expr.h"
 #include "clang/Analysis/CFG.h"
-#include <string>
-#include <vector>
 
 using namespace clang;
 using namespace llvm;

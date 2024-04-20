@@ -1,10 +1,6 @@
 #include "Analysis.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/ASTMatchers/ASTMatchers.h"
-#include "clang/Analysis/CFG.h"
 #include "clang/Tooling/Execution.h"
-#include <cstddef>
-#include <string>
 
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -87,7 +83,7 @@ inline int run(ClangTool &Tool) {
   FuncAnalysis FuncAnalyzer(Analyzer, Tool.getSourcePaths()[0]);
   MatchFinder Finder;
   if (!FunctionName.empty()) {
-    Analyzer.setType(Type::FUNC);
+    Analyzer.setType(AnalysisType::FUNC);
     if (!ClassName.empty()) {
       DeclarationMatcher FuncMatcher =
           cxxMethodDecl(isDefinition(), hasName(FunctionName),
@@ -100,7 +96,7 @@ inline int run(ClangTool &Tool) {
       Finder.addMatcher(FuncMatcher, &FuncAnalyzer);
     }
   } else {
-    Analyzer.setType(Type::FILE);
+    Analyzer.setType(AnalysisType::FILE);
     DeclarationMatcher FuncMatcher = functionDecl(isDefinition()).bind("func");
     Finder.addMatcher(FuncMatcher, &FuncAnalyzer);
   }

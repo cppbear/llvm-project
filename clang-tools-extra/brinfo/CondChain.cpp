@@ -1,6 +1,5 @@
 #include "CondChain.h"
 #include "OrderedSet.h"
-#include "clang/AST/ASTContext.h"
 
 namespace BrInfo {
 
@@ -165,6 +164,88 @@ void simplify(CondSimp &CondSimp, const BinaryOperator *BO, bool Flag) {
   }
 }
 
+StringList CondStatus::getLastDefStrVec(ASTContext *Context) {
+  StringList StrVec;
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  if (!LastDefStmts.empty()) {
+    for (const Stmt *S : LastDefStmts) {
+      S->printPretty(OS, nullptr, Context->getPrintingPolicy());
+      OS.flush();
+      rtrim(Str);
+      StrVec.push_back(Str);
+      Str.clear();
+    }
+  }
+  return StrVec;
+}
+
+void CondStatus::dump(ASTContext *Context) {
+  if (Condition) {
+    Condition->dump(Context);
+    errs() << " is " << (Flag ? "true" : "false");
+    if (!LastDefStmts.empty() || !ParmVars.empty()) {
+      std::string Str;
+      raw_string_ostream OS(Str);
+      errs() << ", where: ";
+      unsigned I = 0;
+      for (const Stmt *S : LastDefStmts) {
+        S->printPretty(OS, nullptr, Context->getPrintingPolicy());
+        OS.flush();
+        rtrim(Str);
+        if (I++ > 0)
+          errs() << ", ";
+        errs() << Str;
+        Str.clear();
+      }
+      I = 0;
+      for (const ParmVarDecl *PVD : ParmVars) {
+        if (I++ > 0)
+          errs() << ", ";
+        errs() << PVD->getNameAsString() << " is ParmVar";
+      }
+    }
+  }
+}
+
+void CondChainInfo::analyze(ASTContext *Context) {
+  simplifyConds();
+  setCondStr(Context);
+  findCallExprs();
+  traceBack();
+  findContra();
+}
+
+void CondChainInfo::simplifyConds() {
+  CondSimp CondSimp;
+  for (CondStatus &Cond : Chain) {
+    if (Cond.Condition) {
+      CondSimp.Cond = nullptr;
+      const Stmt *S = Cond.Condition->getCond();
+      CondSimp.Map[S] = Cond.Flag;
+
+      if (S->getStmtClass() == Stmt::BinaryOperatorClass) {
+        const BinaryOperator *BO = cast<BinaryOperator>(S);
+        if (BO->isLogicalOp()) {
+          simplify(CondSimp, BO, Cond.Flag);
+        }
+      }
+      if (CondSimp.Cond) {
+        Cond.Condition = CondSimp.Cond;
+        Cond.Flag = CondSimp.Flag;
+      }
+    }
+  }
+}
+
+void CondChainInfo::setCondStr(ASTContext *Context) {
+  for (CondStatus &Cond : Chain) {
+    if (Cond.Condition) {
+      Cond.Condition->setCondStr(Context);
+    }
+  }
+}
+
 void CondChainInfo::findCallExprs() {
   OrderedSet<const CallExpr *> Set;
   for (CFGBlock *Blk : Path) {
@@ -185,60 +266,40 @@ void CondChainInfo::findCallExprs() {
   }
 }
 
-bool CondChainInfo::setFuncCallInfo(CondStatus &Cond, const CallExpr *CE) {
-  const FunctionDecl *FuncDecl = CE->getDirectCallee();
-  bool Flag = Cond.Flag;
-  if (Cond.Condition->isNot())
-    Flag = !Flag;
-  if (FuncCallInfo.find(FuncDecl) == FuncCallInfo.end()) {
-    errs() << "Function " << FuncDecl->getNameAsString()
-           << " is not in FuncCallInfo\n";
-  }
-  std::vector<CallExprInfo> &CallExprInfoList = FuncCallInfo[FuncDecl];
-  for (CallExprInfo &CallExprInfo : CallExprInfoList) {
-    if (CallExprInfo.CE == CE) {
-      if (CallExprInfo.CondInfos.find(Cond.Condition->getCondStr()) ==
-          CallExprInfo.CondInfos.end()) {
-        CallExprInfo.CondInfos[Cond.Condition->getCondStr()] = Flag;
-      } else if (CallExprInfo.CondInfos[Cond.Condition->getCondStr()] != Flag) {
-        errs() << "Contradictory CondChain in setFuncCallInfo()\n";
-        return false;
+void CondChainInfo::traceBack() {
+  unsigned CondNum = Chain.size();
+  for (unsigned J = 0; J < CondNum; ++J) {
+    CondStatus &Cond = Chain[J];
+    if (Cond.Condition) {
+      if (Cond.Condition->containDeclRefExpr()) {
+        for (const DeclRefExpr *DRE : Cond.Condition->getDeclRefExprList()) {
+          const Stmt *LastDefStmt = findLastDefStmt(DRE, J);
+          if (LastDefStmt) {
+            // outs() << "Condition:\n";
+            // Cond.Condition->getCond()->dumpColor();
+            // outs() << "Value: " << (Cond.Flag ? "True" : "False") << "\n";
+            // outs() << "DeclRef:\n";
+            // DRE->dumpColor();
+            // outs() << "TraceBack:\n";
+            // LastDefStmt->dumpColor();
+            bool Exam = examineLastDef(DRE, LastDefStmt,
+                                       Cond.Condition->isNot(), Cond.Flag);
+            // outs() << "Exam: " << Exam << "\n";
+            if (Exam)
+              Cond.LastDefStmts.insert(LastDefStmt);
+            else {
+              errs() << "Contradictory CondChain in traceBack()\n";
+              // dumpCondChain(I);
+              IsContra = true;
+            };
+          } else if (DRE->getDecl()->getKind() == Decl::Kind::ParmVar) {
+            // handle ParmVar
+            Cond.ParmVars.insert(cast<ParmVarDecl>(DRE->getDecl()));
+          }
+        }
       }
-      break;
     }
   }
-  return true;
-}
-
-bool CondChainInfo::setDefInfo(CondStatus &Cond, const Stmt *S) {
-  LastDefInfo::DefInfoMap &DefInfoMap = LastDefInfo.DefInfo;
-  bool Flag = Cond.Flag;
-  if (Cond.Condition->isNot())
-    Flag = !Flag;
-  if (DefInfoMap.find(S) == DefInfoMap.end() ||
-      DefInfoMap[S].find(Cond.Condition->getCondStr()) == DefInfoMap[S].end()) {
-    DefInfoMap[S][Cond.Condition->getCondStr()] = Flag;
-  } else if (DefInfoMap[S][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain in setDefInfo()\n";
-    return false;
-  }
-  return true;
-}
-
-bool CondChainInfo::setParmInfo(CondStatus &Cond, const ParmVarDecl *PVD) {
-  LastDefInfo::ParmInfoMap &ParmInfoMap = LastDefInfo.ParmInfo;
-  bool Flag = Cond.Flag;
-  if (Cond.Condition->isNot())
-    Flag = !Flag;
-  if (ParmInfoMap.find(PVD) == ParmInfoMap.end() ||
-      ParmInfoMap[PVD].find(Cond.Condition->getCondStr()) ==
-          ParmInfoMap[PVD].end()) {
-    ParmInfoMap[PVD][Cond.Condition->getCondStr()] = Flag;
-  } else if (ParmInfoMap[PVD][Cond.Condition->getCondStr()] != Flag) {
-    errs() << "Contradictory CondChain in setParmVarInfo()\n";
-    return false;
-  }
-  return true;
 }
 
 void CondChainInfo::findContra() {
@@ -310,40 +371,60 @@ void CondChainInfo::findContra() {
   }
 }
 
-void CondChainInfo::traceBack() {
-  unsigned CondNum = Chain.size();
-  for (unsigned J = 0; J < CondNum; ++J) {
-    CondStatus &Cond = Chain[J];
-    if (Cond.Condition) {
-      if (Cond.Condition->containDeclRefExpr()) {
-        for (const DeclRefExpr *DRE : Cond.Condition->getDeclRefExprList()) {
-          const Stmt *LastDefStmt = findLastDefStmt(DRE, J);
-          if (LastDefStmt) {
-            // outs() << "Condition:\n";
-            // Cond.Condition->getCond()->dumpColor();
-            // outs() << "Value: " << (Cond.Flag ? "True" : "False") << "\n";
-            // outs() << "DeclRef:\n";
-            // DRE->dumpColor();
-            // outs() << "TraceBack:\n";
-            // LastDefStmt->dumpColor();
-            bool Exam = examineLastDef(DRE, LastDefStmt,
-                                       Cond.Condition->isNot(), Cond.Flag);
-            // outs() << "Exam: " << Exam << "\n";
-            if (Exam)
-              Cond.LastDefStmts.insert(LastDefStmt);
-            else {
-              errs() << "Contradictory CondChain in traceBack()\n";
-              // dumpCondChain(I);
-              IsContra = true;
-            };
-          } else if (DRE->getDecl()->getKind() == Decl::Kind::ParmVar) {
-            // handle ParmVar
-            Cond.ParmVars.insert(cast<ParmVarDecl>(DRE->getDecl()));
-          }
-        }
+bool CondChainInfo::setFuncCallInfo(CondStatus &Cond, const CallExpr *CE) {
+  const FunctionDecl *FuncDecl = CE->getDirectCallee();
+  bool Flag = Cond.Flag;
+  if (Cond.Condition->isNot())
+    Flag = !Flag;
+  if (FuncCallInfo.find(FuncDecl) == FuncCallInfo.end()) {
+    errs() << "Function " << FuncDecl->getNameAsString()
+           << " is not in FuncCallInfo\n";
+  }
+  std::vector<CallExprInfo> &CallExprInfoList = FuncCallInfo[FuncDecl];
+  for (CallExprInfo &CallExprInfo : CallExprInfoList) {
+    if (CallExprInfo.CE == CE) {
+      if (CallExprInfo.CondInfos.find(Cond.Condition->getCondStr()) ==
+          CallExprInfo.CondInfos.end()) {
+        CallExprInfo.CondInfos[Cond.Condition->getCondStr()] = Flag;
+      } else if (CallExprInfo.CondInfos[Cond.Condition->getCondStr()] != Flag) {
+        errs() << "Contradictory CondChain in setFuncCallInfo()\n";
+        return false;
       }
+      break;
     }
   }
+  return true;
+}
+
+bool CondChainInfo::setDefInfo(CondStatus &Cond, const Stmt *S) {
+  LastDefInfo::DefInfoMap &DefInfoMap = LastDefInfo.DefInfo;
+  bool Flag = Cond.Flag;
+  if (Cond.Condition->isNot())
+    Flag = !Flag;
+  if (DefInfoMap.find(S) == DefInfoMap.end() ||
+      DefInfoMap[S].find(Cond.Condition->getCondStr()) == DefInfoMap[S].end()) {
+    DefInfoMap[S][Cond.Condition->getCondStr()] = Flag;
+  } else if (DefInfoMap[S][Cond.Condition->getCondStr()] != Flag) {
+    errs() << "Contradictory CondChain in setDefInfo()\n";
+    return false;
+  }
+  return true;
+}
+
+bool CondChainInfo::setParmInfo(CondStatus &Cond, const ParmVarDecl *PVD) {
+  LastDefInfo::ParmInfoMap &ParmInfoMap = LastDefInfo.ParmInfo;
+  bool Flag = Cond.Flag;
+  if (Cond.Condition->isNot())
+    Flag = !Flag;
+  if (ParmInfoMap.find(PVD) == ParmInfoMap.end() ||
+      ParmInfoMap[PVD].find(Cond.Condition->getCondStr()) ==
+          ParmInfoMap[PVD].end()) {
+    ParmInfoMap[PVD][Cond.Condition->getCondStr()] = Flag;
+  } else if (ParmInfoMap[PVD][Cond.Condition->getCondStr()] != Flag) {
+    errs() << "Contradictory CondChain in setParmVarInfo()\n";
+    return false;
+  }
+  return true;
 }
 
 const Stmt *CondChainInfo::findLastDefStmt(const DeclRefExpr *DeclRef,
@@ -446,44 +527,6 @@ bool CondChainInfo::examineLastDef(const DeclRefExpr *DeclRef,
   return Res;
 }
 
-void CondChainInfo::simplifyConds() {
-  CondSimp CondSimp;
-  for (CondStatus &Cond : Chain) {
-    if (Cond.Condition) {
-      CondSimp.Cond = nullptr;
-      const Stmt *S = Cond.Condition->getCond();
-      CondSimp.Map[S] = Cond.Flag;
-
-      if (S->getStmtClass() == Stmt::BinaryOperatorClass) {
-        const BinaryOperator *BO = cast<BinaryOperator>(S);
-        if (BO->isLogicalOp()) {
-          simplify(CondSimp, BO, Cond.Flag);
-        }
-      }
-      if (CondSimp.Cond) {
-        Cond.Condition = CondSimp.Cond;
-        Cond.Flag = CondSimp.Flag;
-      }
-    }
-  }
-}
-
-void CondChainInfo::setCondStr(ASTContext *Context) {
-  for (CondStatus &Cond : Chain) {
-    if (Cond.Condition) {
-      Cond.Condition->setCondStr(Context);
-    }
-  }
-}
-
-void CondChainInfo::analyze(ASTContext *Context) {
-  simplifyConds();
-  setCondStr(Context);
-  findCallExprs();
-  traceBack();
-  findContra();
-}
-
 void CondChainInfo::dumpFuncCallInfo() {
   for (auto &It : FuncCallInfo) {
     outs() << "Function: " << It.first->getNameAsString() << "\n";
@@ -497,6 +540,28 @@ void CondChainInfo::dumpFuncCallInfo() {
       }
     }
   }
+}
+
+void CondChainInfo::dump(ASTContext *Context, unsigned Indent) {
+  std::string IndentStr(Indent, ' ');
+  errs() << IndentStr;
+  unsigned CondNum = Chain.size();
+  unsigned I = 0;
+  for (unsigned J = 0; J < CondNum; ++J) {
+    if (Chain[J].Condition) {
+      if (I++ > 0)
+        errs() << " \033[36m\033[1m->\033[0m ";
+      Chain[J].dump(Context);
+    }
+  }
+  errs() << "\n" + IndentStr;
+  I = 0;
+  for (CFGBlock *Blk : Path) {
+    if (I++ > 0)
+      errs() << " \033[36m\033[1m->\033[0m ";
+    errs() << Blk->getBlockID();
+  }
+  errs() << "\n";
 }
 
 } // namespace BrInfo

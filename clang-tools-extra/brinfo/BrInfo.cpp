@@ -31,9 +31,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "Matcher.h"
-#include "clang/Tooling/Execution.h"
-#include "llvm/Support/CommandLine.h"
-#include <cassert>
 
 // Set up the command line options
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);

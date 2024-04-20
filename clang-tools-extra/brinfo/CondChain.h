@@ -1,14 +1,12 @@
 #include "Condition.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/Analysis/CFG.h"
-#include <memory>
 #include <set>
-#include <unordered_map>
 
 using namespace clang;
 using namespace llvm;
 
 namespace BrInfo {
+
+using StringList = std::vector<std::string>;
 
 struct CondStatus {
   BaseCond *Condition = nullptr;
@@ -45,6 +43,10 @@ struct CondStatus {
     }
     return Condition->getCondStr() < RHS.Condition->getCondStr();
   }
+
+  StringList getLastDefStrVec(ASTContext *Context);
+
+  void dump(ASTContext *Context);
 };
 
 using CondChain = std::vector<CondStatus>; // A chain of conditions
@@ -74,20 +76,23 @@ struct CondChainInfo {
   std::unordered_map<const FunctionDecl *, std::vector<CallExprInfo>>
       FuncCallInfo; // function call information in a condition chain
 
-  void findCallExprs(); // top
+  void analyze(ASTContext *Context);
+  void simplifyConds();
+  void setCondStr(ASTContext *Context);
+  void findCallExprs();
+  void traceBack();
+  void findContra();
+
   bool setFuncCallInfo(CondStatus &Cond, const CallExpr *CE);
   bool setDefInfo(CondStatus &Cond, const Stmt *S);
   bool setParmInfo(CondStatus &Cond, const ParmVarDecl *PVD);
-  void findContra(); // top
-  void traceBack();  // top
+
   const Stmt *findLastDefStmt(const DeclRefExpr *DeclRef, unsigned Loc);
   bool examineLastDef(const DeclRefExpr *DeclRef, const Stmt *LastDefStmt,
                       bool IsNot, bool Flag);
-  void simplifyConds(); // top
-  void setCondStr(ASTContext *Context);
-  void analyze(ASTContext *Context);
 
   void dumpFuncCallInfo();
+  void dump(ASTContext *Context, unsigned Indent = 0);
 };
 
 struct CondSimp {
