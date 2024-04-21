@@ -43,7 +43,7 @@ cl::opt<std::string> ClassName("c",
                                cl::desc("Specify the class of the function"),
                                cl::value_desc("string"),
                                cl::cat(BrInfoCategory));
-cl::opt<std::string> ProjectPath("project", cl::Required,
+static cl::opt<std::string> ProjectPath("project", cl::Required,
                                  cl::desc("Specify the projrct path"),
                                  cl::value_desc("string"),
                                  cl::cat(BrInfoCategory));
@@ -61,8 +61,11 @@ int main(int argc, const char **argv) {
     errs() << "Just specify one source file\n";
     return 1;
   }
+  SmallVector<char, 128> RealPath;
+  sys::fs::real_path(ProjectPath, RealPath);
+  std::string ProjectPathStr(RealPath.begin(), RealPath.end());
   ClangTool Tool(OptionParser.getCompilations(),
                  OptionParser.getSourcePathList());
 
-  return BrInfo::run(Tool);
+  return BrInfo::run(Tool, ProjectPathStr);
 }

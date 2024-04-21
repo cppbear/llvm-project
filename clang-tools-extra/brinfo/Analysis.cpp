@@ -48,7 +48,7 @@ void Analysis::analyze() {
   for (CondChainInfo &ChainInfo : ChainList) {
     ChainInfo.analyze(Context);
   }
-  dumpCondChains();
+  // dumpCondChains();
   condChainsToReqs();
   clear();
 }
@@ -171,11 +171,6 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     ColorOfBlk[ID] = 1;
 
   // errs() << "Block: " << ID << " Parent: " << Parent << "\n";
-  // if (Condition) {
-  //   outs() << "    Cond: ";
-  //   Condition->dumpPretty(Context);
-  //   outs() << ": " << (Flag ? "True" : "False") << "\n";
-  // }
 
   if (ColorOfBlk[ID] == 2 && ID != Cfg->getExit().getBlockID()) {
     dfsTraverseCFG(&Cfg->getExit(), Condition, false);
@@ -197,7 +192,6 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     std::sort(SortedPath.begin(), SortedPath.end());
     if (std::binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
       // Loop detected
-      // errs() << "Loop detected\n";
       for (auto Succ : Blk->succs()) {
         if (!std::binary_search(SortedPath.begin(), SortedPath.end(), Succ)) {
           dfsTraverseCFG(Succ, Condition, false);
@@ -213,7 +207,6 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
   Parent = ID;
   Stmt *Terminator = Blk->getTerminatorStmt();
   if (Terminator) {
-    // FIXME: Handle Loop and Try-catch
     switch (Terminator->getStmtClass()) {
     default:
       errs() << "Terminator: " << Terminator->getStmtClassName() << "\n";
