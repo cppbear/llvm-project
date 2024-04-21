@@ -1,4 +1,5 @@
 #include "CondChain.h"
+#include <unordered_set>
 
 using namespace clang;
 using namespace llvm;
@@ -20,6 +21,7 @@ private:
   json Results;
 
   std::vector<CondChainList> BlkChain;
+  std::vector<unsigned char> ColorOfBlk;
   long Parent;
 
   void setSignature();
@@ -27,7 +29,8 @@ private:
   void condChainsToReqs();
   void clear();
 
-  void dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag);
+  void toBlack();
+  void dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag);
   void dumpCondChains();
   void dumpBlkChain(unsigned ID);
   void dumpBlkChain();

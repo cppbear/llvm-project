@@ -6304,7 +6304,7 @@ void CFG::dumpCFGToDot(const LangOptions &LO, const std::string &DirPath,
                        const std::string &Title) const {
   StmtPrinterHelper H(this, LO);
   GraphHelper = &H;
-  std::string Filename = DirPath + GraphName + ".dot";
+  std::string Filename = DirPath + "/" + GraphName + ".dot";
   llvm::dumpDotGraphToFile(this, Filename, Title);
   GraphHelper = nullptr;
 }

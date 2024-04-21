@@ -264,7 +264,7 @@ void CondChainInfo::setCondStr(ASTContext *Context) {
 
 void CondChainInfo::findCallExprs() {
   OrderedSet<const CallExpr *> Set;
-  for (CFGBlock *Blk : Path) {
+  for (const CFGBlock *Blk : Path) {
     for (const CFGElement &E : *Blk) {
       if (std::optional<CFGStmt> S = E.getAs<CFGStmt>()) {
         const Stmt *Stmt = S->getStmt();
@@ -447,14 +447,16 @@ bool CondChainInfo::setParmInfo(CondStatus &Cond, const ParmVarDecl *PVD) {
 const Stmt *CondChainInfo::findLastDefStmt(const DeclRefExpr *DeclRef,
                                            unsigned Loc) {
   // outs() << "DeclRefExpr: ";
-  // DeclRef->dumpPretty(Context);
+  // DeclRef->dumpColor();
   // outs() << "\n";
   bool Found = false;
   const Stmt *TraceBack = nullptr;
   for (auto It = Path.rend() - Loc; It != Path.rend() && !Found; ++It) {
-    CFGBlock *Blk = *It;
-    CFGElement *E = Blk->rbegin();
+    const CFGBlock *Blk = *It;
+    const CFGElement *E = Blk->rbegin();
     if (Blk->getTerminator().isValid()) {
+      if (Blk->size() <= 1)
+        continue;
       E = E + 1;
     }
     for (; E != Blk->rend() && !Found; ++E) {
@@ -508,6 +510,23 @@ const Stmt *CondChainInfo::findLastDefStmt(const DeclRefExpr *DeclRef,
           }
           break;
         }
+        case Stmt::UnaryOperatorClass: {
+          const UnaryOperator *UO = cast<UnaryOperator>(Stmt);
+          if (UO->isIncrementDecrementOp()) {
+            Expr *SubExpr = UO->getSubExpr()->IgnoreParenImpCasts();
+            if (SubExpr->getStmtClass() == Stmt::DeclRefExprClass) {
+              DeclRefExpr *DRE = cast<DeclRefExpr>(SubExpr);
+              if (DRE->getDecl() == DeclRef->getDecl()) {
+                // outs() << "UnaryOperator:\n";
+                // UO->dumpPretty(Context);
+                // outs() << "\n";
+                Found = true;
+                TraceBack = UO;
+              }
+            }
+          }
+          break;
+        }
         }
       }
     }
@@ -537,9 +556,14 @@ bool CondChainInfo::examineLastDef(const DeclRefExpr *DeclRef,
   }
   case Stmt::BinaryOperatorClass: {
     const BinaryOperator *BO = cast<BinaryOperator>(LastDefStmt);
-    Res = checkLiteralExpr(BO->getRHS()->IgnoreParenImpCasts(), CondStatus);
+    if (BO->getOpcode() == BinaryOperatorKind::BO_Assign) {
+      Res = checkLiteralExpr(BO->getRHS()->IgnoreParenImpCasts(), CondStatus);
+    }
     break;
   }
+    // case Stmt::UnaryOperatorClass: {
+    //   break;
+    // }
   }
   return Res;
 }
@@ -573,7 +597,7 @@ void CondChainInfo::dump(ASTContext *Context, unsigned Indent) {
   }
   errs() << "\n" + IndentStr;
   I = 0;
-  for (CFGBlock *Blk : Path) {
+  for (const CFGBlock *Blk : Path) {
     if (I++ > 0)
       errs() << " \033[36m\033[1m->\033[0m ";
     errs() << Blk->getBlockID();
@@ -628,7 +652,7 @@ std::string CondChainInfo::getReturnStr(ASTContext *Context,
   std::string Result = "";
   std::string Str;
   raw_string_ostream OS(Str);
-  CFGBlock *Blk = Path[Path.size() - 2];
+  const CFGBlock *Blk = Path[Path.size() - 2];
   if (!Blk->hasNoReturnElement()) {
     if (std::optional<CFGStmt> S = Blk->back().getAs<CFGStmt>()) {
       if (S->getStmt()->getStmtClass() == Stmt::ReturnStmtClass) {

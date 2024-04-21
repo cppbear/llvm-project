@@ -9,20 +9,60 @@ int foo() { return 2; }
 
 int bar() { return 3; }
 
-// void loop(int x) {
-//   int t = foo() + bar();
-//   for (int i = 0; i < x && x > 10; i++) {
-//     if (i % 2 == 0)
-//       std::cout << "Even iteration " << i << std::endl;
-//     else
-//       std::cout << "Odd iteration " << i << std::endl;
-//   }
-//   int s = foo() - bar();
-// }
+double divide(double dividend, double divisor) {
+  if (divisor == 0) {
+    throw std::runtime_error("Divisor cannot be zero");
+  }
+  return dividend / divisor;
+}
 
 void Reader::readComment() {
-  int *succ = NULL;
-  if (succ == nullptr) {
-    // std::cout << "succ is nullptr" << std::endl;
+  double x = 10.0, y = 0.0;
+  if (y == 0.0) {
+    y = 1.0;
+  }
+  x += 1;
+  try {
+    if (x > 0) {
+      x += 1;
+    }
+    double result = divide(x, y);
+    if (result > 0) {
+      result += 3;
+    } else {
+      result += 5;
+    }
+    result += 7;
+  } catch (const std::exception &e) {
+    int a = 0;
+    a++;
+    if (x > 0) {
+      x++;
+    }
+    try {
+      if (x > 0) {
+        x += 1;
+      }
+      double result = divide(x, y);
+      if (result > 0) {
+        result += 3;
+      } else {
+        result += 5;
+      }
+      result += 7;
+    } catch (const std::exception &e) {
+      int a = 0;
+      a++;
+      if (x > 0) {
+        x++;
+      }
+    }
+    if (x > 0) {
+      x++;
+    }
+  }
+
+  if (x > 0) {
+    x += 1;
   }
 }

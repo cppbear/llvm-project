@@ -53,7 +53,7 @@ struct CondStatus {
 };
 
 using CondChain = std::vector<CondStatus>; // A chain of conditions
-using BlkPath = std::vector<CFGBlock *>;   // A path of basic blocks
+using BlkPath = std::vector<const CFGBlock *>;   // A path of basic blocks
 
 // last definition information for a condition chain
 struct LastDefInfo {

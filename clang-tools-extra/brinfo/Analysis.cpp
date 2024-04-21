@@ -1,4 +1,6 @@
 #include "Analysis.h"
+#include "clang/AST/Type.h"
+#include <algorithm>
 
 namespace BrInfo {
 
@@ -31,6 +33,7 @@ void Analysis::init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
   FuncDecl = FD;
   setSignature();
   BlkChain.resize(Cfg->getNumBlockIDs());
+  ColorOfBlk.resize(Cfg->getNumBlockIDs(), 0);
   Parent = -1;
   // BlkChain[Cfg->getEntry().getBlockID()].push_back(
   //     CondChainInfo(&Cfg->getEntry()));
@@ -45,7 +48,7 @@ void Analysis::analyze() {
   for (CondChainInfo &ChainInfo : ChainList) {
     ChainInfo.analyze(Context);
   }
-  // dumpCondChains();
+  dumpCondChains();
   condChainsToReqs();
   clear();
 }
@@ -87,7 +90,18 @@ void Analysis::setSignature() {
   // outs() << "Signature: " << Signature << "\n";
 }
 
-void Analysis::extractCondChains() { dfs(&Cfg->getEntry(), nullptr, false); }
+void Analysis::extractCondChains() {
+  dfsTraverseCFG(&Cfg->getEntry(), nullptr, false);
+  toBlack();
+  for (const CFGBlock *Try : Cfg->try_blocks()) {
+    Parent = Try->getBlockID();
+    CFGBlock *Blk = *Try->succ_begin();
+    BlkChain[Parent].push_back(
+        {{{nullptr, false, {}, {}}}, {Try}, false, {}, {}});
+    dfsTraverseCFG(Blk, nullptr, false);
+    toBlack();
+  }
+}
 
 void Analysis::condChainsToReqs() {
   json Json;
@@ -123,6 +137,11 @@ void Analysis::condChainsToReqs() {
     J["class"] = ClassName;
     J["input"] = Input;
     J["result"] = Result;
+    if (CondChains[ID].Path[0]->getBlockID() == Cfg->getEntry().getBlockID()) {
+      J["incatch"] = false;
+    } else {
+      J["incatch"] = true;
+    }
     Json[CondChainStr] = J;
   }
   Results[Signature] = Json;
@@ -134,24 +153,59 @@ void Analysis::clear() {
   FuncDecl = nullptr;
   Signature.clear();
   BlkChain.clear();
+  ColorOfBlk.clear();
   Parent = -1;
 }
 
-void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
-  unsigned ID = Blk->getBlockID();
+void Analysis::toBlack() {
+  for (unsigned char &Color : ColorOfBlk) {
+    if (Color == 1) {
+      Color = 2;
+    }
+  }
+}
 
-  // outs() << "Node: " << ID << " Parent: " << Parent << "\n";
+void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
+  unsigned ID = Blk->getBlockID();
+  if (ColorOfBlk[ID] == 0)
+    ColorOfBlk[ID] = 1;
+
+  // errs() << "Block: " << ID << " Parent: " << Parent << "\n";
   // if (Condition) {
   //   outs() << "    Cond: ";
   //   Condition->dumpPretty(Context);
   //   outs() << ": " << (Flag ? "True" : "False") << "\n";
   // }
 
+  if (ColorOfBlk[ID] == 2 && ID != Cfg->getExit().getBlockID()) {
+    dfsTraverseCFG(&Cfg->getExit(), Condition, false);
+    return;
+  }
+
   if (Parent != -1 && !BlkChain[Parent].empty()) {
     CondChainInfo &ChainInfo = BlkChain[Parent].back();
     CondChain Chain = ChainInfo.Chain;
-    Chain.push_back({Condition, Flag, {}, {}});
     BlkPath Path = ChainInfo.Path;
+    // unsigned I = 0;
+    // for (const CFGBlock *Blk : Path) {
+    //   if (I++ > 0)
+    //     errs() << " \033[36m\033[1m->\033[0m ";
+    //   errs() << Blk->getBlockID();
+    // }
+    // errs() << "\n";
+    BlkPath SortedPath = Path;
+    std::sort(SortedPath.begin(), SortedPath.end());
+    if (std::binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
+      // Loop detected
+      // errs() << "Loop detected\n";
+      for (auto Succ : Blk->succs()) {
+        if (!std::binary_search(SortedPath.begin(), SortedPath.end(), Succ)) {
+          dfsTraverseCFG(Succ, Condition, false);
+          return;
+        }
+      }
+    }
+    Chain.push_back({Condition, Flag, {}, {}});
     Path.push_back(Blk);
     BlkChain[ID].push_back({Chain, Path, false, {}, {}});
   }
@@ -174,13 +228,13 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       }
       auto *I = Blk->succ_begin();
       if (Cond) {
-        dfs(*I, Cond, true);
+        dfsTraverseCFG(*I, Cond, true);
         Parent = ID;
         ++I;
-        dfs(*I, Cond, false);
+        dfsTraverseCFG(*I, Cond, false);
         Parent = ID;
       } else {
-        dfs(*I, nullptr, false);
+        dfsTraverseCFG(*I, nullptr, false);
         Parent = ID;
       }
       break;
@@ -200,7 +254,7 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
             Cond = new CaseCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts(),
                                 Case);
           }
-          dfs(I, Cond, true);
+          dfsTraverseCFG(I, Cond, true);
           Parent = ID;
         } else {
           // Default case
@@ -213,13 +267,13 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
         if (InnerCond) {
           Cond = new DefaultCond(InnerCond, Cases);
         }
-        dfs(DefaultBlk, Cond, false);
+        dfsTraverseCFG(DefaultBlk, Cond, false);
         Parent = ID;
       }
       break;
     }
     case Stmt::BreakStmtClass:
-      dfs(*Blk->succ_begin(), nullptr, false);
+      dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
       Parent = ID;
       break;
     case Stmt::ForStmtClass: {
@@ -236,23 +290,22 @@ void Analysis::dfs(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       }
       auto *I = Blk->succ_begin();
       if (InnerCond) {
-        dfs(*I, Cond, true);
+        dfsTraverseCFG(*I, Cond, true);
         Parent = ID;
         ++I;
-        dfs(*I, Cond, false);
+        dfsTraverseCFG(*I, Cond, false);
         Parent = ID;
       } else {
-        dfs(*I, nullptr, false);
+        dfsTraverseCFG(*I, nullptr, false);
         Parent = ID;
       }
       break;
     }
     }
-  } else if (Blk->succ_size() == 1 && !Blk->getLoopTarget()) {
-    dfs(*Blk->succ_begin(), nullptr, false);
+  } else if (Blk->succ_size() == 1) {
+    dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
     Parent = ID;
   } else if (Blk->getBlockID() != Cfg->getExit().getBlockID()) {
-    // TODO: Handle back edges in loops
     outs() << "Unhandle Block:\n";
     Blk->dump();
   }

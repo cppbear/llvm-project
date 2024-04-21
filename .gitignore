@@ -72,3 +72,5 @@ pythonenv*
 /lldb/docs/python_api/
 
 **/test/*.json
+**/test/*.dot
+**/test/*.svg

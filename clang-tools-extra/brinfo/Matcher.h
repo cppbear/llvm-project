@@ -41,8 +41,7 @@ public:
       auto Cfg = CFG::buildCFG(Func, Func->getBody(), Result.Context, BO);
       if (Cfg) {
         if (DumpCFG)
-          Cfg->dumpCFGToDot(Result.Context->getLangOpts(),
-                            "/home/chubei/workspace/DOT/",
+          Cfg->dumpCFGToDot(Result.Context->getLangOpts(), ProjectPath,
                             Func->getNameAsString(), Func->getNameAsString());
         /* for (CFGBlock *Blk : Cfg->nodes()) {
           Blk->dump();
