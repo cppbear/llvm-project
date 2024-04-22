@@ -19,7 +19,8 @@ class FuncAnalysis : public MatchFinder::MatchCallback {
   std::string ProjectPath;
 
 public:
-  FuncAnalysis(Analysis &Analyzer, std::string FilePath, std::string ProjectPath)
+  FuncAnalysis(Analysis &Analyzer, std::string FilePath,
+               std::string ProjectPath)
       : Analyzer(Analyzer), FilePath(FilePath), ProjectPath(ProjectPath) {}
 
   virtual void run(const MatchFinder::MatchResult &Result) override {
@@ -39,11 +40,13 @@ public:
 
       auto BO = CFG::BuildOptions();
       BO.PruneTriviallyFalseEdges = true;
+      BO.AddEHEdges = true;
       auto Cfg = CFG::buildCFG(Func, Func->getBody(), Result.Context, BO);
       if (Cfg) {
         if (DumpCFG)
           Cfg->dumpCFGToDot(Result.Context->getLangOpts(), ProjectPath,
                             Func->getNameAsString(), Func->getNameAsString());
+
         /* for (CFGBlock *Blk : Cfg->nodes()) {
           Blk->dump();
           for (CFGElement E : Blk->Elements) {
