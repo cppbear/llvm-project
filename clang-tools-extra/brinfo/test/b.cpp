@@ -5,7 +5,7 @@ public:
   void readComment();
 };
 
-int foo() { return 2; }
+int foo() noexcept { return 2; }
 
 int bar() { return 3; }
 
@@ -32,6 +32,7 @@ void Reader::readComment() {
     } else {
       result += 5;
     }
+    int x = foo();
     result += 7;
   } catch (const std::exception &e) {
     int a = 0;
@@ -61,6 +62,30 @@ void Reader::readComment() {
       x++;
     }
   }
+
+  if (x > 0) {
+    x += 1;
+  }
+}
+
+void trycatch() {
+  double x = 10.0, y = 0.0;
+  if (y == 0.0) {
+    y = 1.0;
+  }
+  x += 1;
+  if (x > 0) {
+    x += 1;
+  }
+  double result = divide(x, y);
+  result = divide(x, y);
+  result = divide(x, y);
+  if (result > 0) {
+    result += 3;
+  } else {
+    result += 5;
+  }
+  result += 7;
 
   if (x > 0) {
     x += 1;
