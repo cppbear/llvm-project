@@ -40,7 +40,7 @@ public:
 
       auto BO = CFG::BuildOptions();
       BO.PruneTriviallyFalseEdges = true;
-      BO.AddEHEdges = true;
+      // BO.AddEHEdges = true;
       auto Cfg = CFG::buildCFG(Func, Func->getBody(), Result.Context, BO);
       if (Cfg) {
         if (DumpCFG)
