@@ -61,7 +61,7 @@ public:
           }
         } */
 
-        Analyzer.init(Cfg.get(), Result.Context, Func);
+        Analyzer.init(Cfg.get(), Result.Context, Func->getCanonicalDecl());
         Analyzer.analyze();
       }
     }

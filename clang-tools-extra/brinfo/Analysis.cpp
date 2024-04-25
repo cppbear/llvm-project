@@ -84,7 +84,7 @@ void Analysis::setSignature() {
       Signature += ", ";
     }
     Signature +=
-        Param->getType().getAsString() + " " + Param->getNameAsString();
+        Param->getType().getAsString();
   }
   Signature += ")";
   // outs() << "Signature: " << Signature << "\n";
@@ -110,6 +110,8 @@ void Analysis::condChainsToReqs() {
   CondChainList &CondChains = BlkChain[ExitID];
   unsigned Size = CondChains.size();
 
+  Json["function"] = FuncDecl->getNameAsString();
+
   std::string Input = "";
   int I = 0;
   for (ParmVarDecl *Param : FuncDecl->parameters()) {
@@ -119,10 +121,13 @@ void Analysis::condChainsToReqs() {
     Input +=
         Param->getNameAsString() + " is a " + Param->getType().getAsString();
   }
+  Json["input"] = Input;
+
   std::string ClassName = "";
   if (FuncDecl->isCXXClassMember()) {
     ClassName = cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString();
   }
+  Json["class"] = ClassName;
 
   for (unsigned ID = 0; ID < Size; ++ID) {
     if (CondChains[ID].IsContra)
@@ -134,15 +139,14 @@ void Analysis::condChainsToReqs() {
           Context, FuncDecl->getReturnType().getAsString());
     }
     json J = CondChains[ID].toTestReqs(Context);
-    J["class"] = ClassName;
-    J["input"] = Input;
+
     J["result"] = Result;
     if (CondChains[ID].Path[0]->getBlockID() == Cfg->getEntry().getBlockID()) {
       J["incatch"] = false;
     } else {
       J["incatch"] = true;
     }
-    Json[CondChainStr] = J;
+    Json["chains"][CondChainStr] = J;
   }
   Results[Signature] = Json;
 }

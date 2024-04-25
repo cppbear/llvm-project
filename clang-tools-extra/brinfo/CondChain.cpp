@@ -613,16 +613,16 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
     if (Cond.Condition) {
       if (CondStatusSet.find(Cond) == CondStatusSet.end()) {
         CondStatusSet.insert(Cond);
-        Json["precondition"].push_back(
+        Json["preconditions"].push_back(
             {{"condition", Cond.toString()},
-             {"lastdef", Cond.getLastDefStrVec(Context)}});
+             {"last_def", Cond.getLastDefStrVec(Context)}});
       }
     }
   }
   CondStatusSet.clear();
 
-  std::vector<StringList> ConditionsList;
-  StringList CondVec;
+  std::vector<StringList> Actions;
+  StringList CondList;
   for (auto &FuncCall : FuncCallInfo) {
     const FunctionDecl *FD = FuncCall.first;
     std::string FuncName = FD->getNameAsString();
@@ -633,15 +633,15 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
         bool Flag = CondInfo.second;
         Condition += " is ";
         Condition += (Flag ? "true" : "false");
-        CondVec.push_back(Condition);
+        CondList.push_back(Condition);
       }
-      ConditionsList.push_back(CondVec);
-      CondVec.clear();
+      Actions.push_back(CondList);
+      CondList.clear();
     }
     Json["mock"].push_back({{"function", FuncName},
-                            {"conditions", ConditionsList},
+                            {"actions", Actions},
                             {"return", FD->getReturnType().getAsString()}});
-    ConditionsList.clear();
+    Actions.clear();
   }
 
   return Json;
