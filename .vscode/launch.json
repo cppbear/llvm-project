@@ -1,0 +1,78 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug",
+            "program": "build/debug/bin/brinfo",
+            "args": [
+                "--project",
+                "clang-tools-extra/brinfo/test",
+                "clang-tools-extra/brinfo/test/c.cpp",
+                "-f",
+                "readComment",
+                "-c",
+                "Reader",
+                // "--cfg",
+                "--",
+                "-ferror-limit=0"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build debug",
+            "sourceLanguages": [
+                "cpp"
+            ]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release",
+            "program": "build/release/bin/brinfo",
+            "args": [
+                "--project",
+                "clang-tools-extra/brinfo/test",
+                "clang-tools-extra/brinfo/test/c.cpp",
+                "-f",
+                "readComment",
+                "-c",
+                "Reader",
+                // "--cfg",
+                "--",
+                "-ferror-limit=0"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build release",
+            "sourceLanguages": [
+                "cpp"
+            ]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "clean&debug",
+            "program": "build/debug/bin/brinfo",
+            "args": [
+                "clang-tools-extra/brinfo/test/c.cpp",
+                "--"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "clean&build debug"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "clean&release",
+            "program": "build/release/bin/brinfo",
+            "args": [
+                "clang-tools-extra/brinfo/test/c.cpp",
+                "--"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "clean&build release"
+        }
+    ]
+}
