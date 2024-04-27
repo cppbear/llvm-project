@@ -122,8 +122,8 @@ void IfCond::dump(const ASTContext *Context) { Cond->dumpPretty(*Context); }
 //   rtrim(CondStr);
 // }
 
-std::string IfCond::toString(const ASTContext *Context) {
-  std::string Str;
+string IfCond::toString(const ASTContext *Context) {
+  string Str;
   llvm::raw_string_ostream OS(Str);
   Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
   rtrim(Str);
@@ -132,8 +132,8 @@ std::string IfCond::toString(const ASTContext *Context) {
 
 void LoopCond::dump(const ASTContext *Context) { Cond->dumpPretty(*Context); }
 
-std::string LoopCond::toString(const ASTContext *Context) {
-  std::string Str;
+string LoopCond::toString(const ASTContext *Context) {
+  string Str;
   llvm::raw_string_ostream OS(Str);
   Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
   return OS.str();
@@ -145,8 +145,8 @@ void CaseCond::dump(const ASTContext *Context) {
   Case->dumpPretty(*Context);
 }
 
-std::string CaseCond::toString(const ASTContext *Context) {
-  std::string Str;
+string CaseCond::toString(const ASTContext *Context) {
+  string Str;
   llvm::raw_string_ostream OS(Str);
   Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
   OS << ": ";
@@ -163,8 +163,8 @@ void DefaultCond::dump(const ASTContext *Context) {
   }
 }
 
-std::string DefaultCond::toString(const ASTContext *Context) {
-  std::string Str;
+string DefaultCond::toString(const ASTContext *Context) {
+  string Str;
   llvm::raw_string_ostream OS(Str);
   Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
   OS << ": ";
