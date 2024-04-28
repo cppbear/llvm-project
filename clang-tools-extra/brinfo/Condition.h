@@ -2,13 +2,14 @@
 
 using namespace clang;
 using namespace llvm;
+using namespace std;
 
 namespace BrInfo {
 
-inline void rtrim(std::string &S) {
-  S.erase(std::find_if(
+inline void rtrim(string &S) {
+  S.erase(find_if(
               S.rbegin(), S.rend(),
-              [](unsigned char Ch) { return !std::isspace(Ch) && Ch != ';'; })
+              [](unsigned char Ch) { return !isspace(Ch) && Ch != ';'; })
               .base(),
           S.end());
 }
@@ -16,12 +17,12 @@ inline void rtrim(std::string &S) {
 class BaseCond {
 protected:
   const Stmt *Cond = nullptr;
-  std::string CondStr;
+  string CondStr;
   bool IsNot = false;
   bool ContainDeclRefExpr = false;
   bool ContainCallExpr = false;
-  std::vector<const DeclRefExpr *> DeclRefExprList;
-  std::vector<const CallExpr *> CallExprList;
+  vector<const DeclRefExpr *> DeclRefExprList;
+  vector<const CallExpr *> CallExprList;
   void findDeclRefExpr(const Stmt *S);
   void findCallExpr(const Stmt *S);
 
@@ -33,16 +34,16 @@ public:
   }
   virtual ~BaseCond() { Cond = nullptr; }
   virtual void dump(const ASTContext *Context) = 0;
-  virtual std::string toString(const ASTContext *Context) = 0;
+  virtual string toString(const ASTContext *Context) = 0;
   const Stmt *getCond() { return Cond; }
-  std::string getCondStr() { return CondStr; }
+  string getCondStr() { return CondStr; }
   bool isNot() { return IsNot; }
   bool containDeclRefExpr() { return ContainDeclRefExpr; }
   bool containCallExpr() { return ContainCallExpr; }
-  std::vector<const DeclRefExpr *> &getDeclRefExprList() {
+  vector<const DeclRefExpr *> &getDeclRefExprList() {
     return DeclRefExprList;
   }
-  std::vector<const CallExpr *> &getCallExprList() { return CallExprList; }
+  vector<const CallExpr *> &getCallExprList() { return CallExprList; }
   void setCondStr(const ASTContext *Context);
 };
 
@@ -55,7 +56,7 @@ public:
   virtual ~IfCond() {}
   void dump(const ASTContext *Context) override;
 //   void setCondStr(const ASTContext &Context);
-  std::string toString(const ASTContext *Context) override;
+  string toString(const ASTContext *Context) override;
 };
 
 class CaseCond : public BaseCond {
@@ -69,21 +70,21 @@ public:
   virtual ~CaseCond() { Case = nullptr; }
   void dump(const ASTContext *Context) override;
   void setCondStr(const ASTContext *Context){};
-  std::string toString(const ASTContext *Context) override;
+  string toString(const ASTContext *Context) override;
 };
 
 class DefaultCond : public BaseCond {
-  std::vector<Stmt *> Cases;
+  vector<Stmt *> Cases;
 
 public:
-  DefaultCond(Stmt *Cond, std::vector<Stmt *> Cases)
+  DefaultCond(Stmt *Cond, vector<Stmt *> Cases)
       : BaseCond(Cond), Cases(Cases) {
     // setCondStr(Context);
   }
   virtual ~DefaultCond() {}
   void dump(const ASTContext *Context) override;
   void setCondStr(const ASTContext *Context){};
-  std::string toString(const ASTContext *Context) override;
+  string toString(const ASTContext *Context) override;
 };
 
 class LoopCond : public BaseCond {
@@ -94,7 +95,7 @@ public:
   virtual ~LoopCond() {}
   void dump(const ASTContext *Context) override;
   void setCondStr(const ASTContext *Context){};
-  std::string toString(const ASTContext *Context) override;
+  string toString(const ASTContext *Context) override;
 };
 
 class TryCond : public BaseCond {};

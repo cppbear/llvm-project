@@ -50,9 +50,9 @@ bool checkLiteralExpr(const Expr *Expr, CondStatus &CondStatus) {
   // TODO: Handle other literal expressions, like Integer, Floating
   case Stmt::GNUNullExprClass:
   case Stmt::CXXNullPtrLiteralExprClass: {
-    std::string CondStr = CondStatus.Condition->getCondStr();
-    bool ContainNull = CondStr.find("nullptr") != std::string::npos ||
-                       CondStr.find("NULL") != std::string::npos;
+    string CondStr = CondStatus.Condition->getCondStr();
+    bool ContainNull = CondStr.find("nullptr") != string::npos ||
+                       CondStr.find("NULL") != string::npos;
     if ((ContainNull == Flag) == IsNot) {
       Res = false;
     }
@@ -170,8 +170,8 @@ void simplify(CondSimp &CondSimp, const BinaryOperator *BO, bool Flag) {
   }
 }
 
-std::string CondStatus::toString() {
-  std::string Str = "";
+string CondStatus::toString() {
+  string Str = "";
   Str += Condition->getCondStr() + " is ";
   if (Condition->isNot())
     Str += (Flag ? "false" : "true");
@@ -182,7 +182,7 @@ std::string CondStatus::toString() {
 
 StringList CondStatus::getLastDefStrVec(ASTContext *Context) {
   StringList StrVec;
-  std::string Str;
+  string Str;
   raw_string_ostream OS(Str);
   if (!LastDefStmts.empty()) {
     for (const Stmt *S : LastDefStmts) {
@@ -201,7 +201,7 @@ void CondStatus::dump(ASTContext *Context) {
     Condition->dump(Context);
     errs() << " is " << (Flag ? "true" : "false");
     if (!LastDefStmts.empty() || !ParmVars.empty()) {
-      std::string Str;
+      string Str;
       raw_string_ostream OS(Str);
       errs() << ", where: ";
       unsigned I = 0;
@@ -266,7 +266,7 @@ void CondChainInfo::findCallExprs() {
   OrderedSet<const CallExpr *> Set;
   for (const CFGBlock *Blk : Path) {
     for (const CFGElement &E : *Blk) {
-      if (std::optional<CFGStmt> S = E.getAs<CFGStmt>()) {
+      if (optional<CFGStmt> S = E.getAs<CFGStmt>()) {
         const Stmt *Stmt = S->getStmt();
         Set.merge(getCallExpr(Stmt));
       }
@@ -397,7 +397,7 @@ bool CondChainInfo::setFuncCallInfo(CondStatus &Cond, const CallExpr *CE) {
     errs() << "Function " << FuncDecl->getNameAsString()
            << " is not in FuncCallInfo\n";
   }
-  std::vector<CallExprInfo> &CallExprInfoList = FuncCallInfo[FuncDecl];
+  vector<CallExprInfo> &CallExprInfoList = FuncCallInfo[FuncDecl];
   for (CallExprInfo &CallExprInfo : CallExprInfoList) {
     if (CallExprInfo.CE == CE) {
       if (CallExprInfo.CondInfos.find(Cond.Condition->getCondStr()) ==
@@ -460,7 +460,7 @@ const Stmt *CondChainInfo::findLastDefStmt(const DeclRefExpr *DeclRef,
       E = E + 1;
     }
     for (; E != Blk->rend() && !Found; ++E) {
-      if (std::optional<CFGStmt> S = E->getAs<CFGStmt>()) {
+      if (optional<CFGStmt> S = E->getAs<CFGStmt>()) {
         const Stmt *Stmt = S->getStmt();
         // Stmt->dumpColor();
         switch (Stmt->getStmtClass()) {
@@ -584,7 +584,7 @@ void CondChainInfo::dumpFuncCallInfo() {
 }
 
 void CondChainInfo::dump(ASTContext *Context, unsigned Indent) {
-  std::string IndentStr(Indent, ' ');
+  string IndentStr(Indent, ' ');
   errs() << IndentStr;
   unsigned CondNum = Chain.size();
   unsigned I = 0;
@@ -608,55 +608,55 @@ void CondChainInfo::dump(ASTContext *Context, unsigned Indent) {
 json CondChainInfo::toTestReqs(ASTContext *Context) {
   json Json;
 
-  std::set<CondStatus> CondStatusSet;
+  set<CondStatus> CondStatusSet;
   for (CondStatus &Cond : Chain) {
     if (Cond.Condition) {
       if (CondStatusSet.find(Cond) == CondStatusSet.end()) {
         CondStatusSet.insert(Cond);
-        Json["precondition"].push_back(
+        Json["preconditions"].push_back(
             {{"condition", Cond.toString()},
-             {"lastdef", Cond.getLastDefStrVec(Context)}});
+             {"last_def", Cond.getLastDefStrVec(Context)}});
       }
     }
   }
   CondStatusSet.clear();
 
-  std::vector<StringList> ConditionsList;
-  StringList CondVec;
+  vector<StringList> Actions;
+  StringList CondList;
   for (auto &FuncCall : FuncCallInfo) {
     const FunctionDecl *FD = FuncCall.first;
-    std::string FuncName = FD->getNameAsString();
-    std::vector<CallExprInfo> &CallExprInfoList = FuncCall.second;
+    string FuncName = FD->getNameAsString();
+    vector<CallExprInfo> &CallExprInfoList = FuncCall.second;
     for (CallExprInfo &CallExprInfo : CallExprInfoList) {
       for (auto &CondInfo : CallExprInfo.CondInfos) {
-        std::string Condition = CondInfo.first;
+        string Condition = CondInfo.first;
         bool Flag = CondInfo.second;
         Condition += " is ";
         Condition += (Flag ? "true" : "false");
-        CondVec.push_back(Condition);
+        CondList.push_back(Condition);
       }
-      ConditionsList.push_back(CondVec);
-      CondVec.clear();
+      Actions.push_back(CondList);
+      CondList.clear();
     }
     Json["mock"].push_back({{"function", FuncName},
                             {"virtual", FD->isVirtualAsWritten()},
                             {"static", FD->isStatic()},
-                            {"conditions", ConditionsList},
+                            {"actions", Actions},
                             {"return", FD->getReturnType().getAsString()}});
-    ConditionsList.clear();
+    Actions.clear();
   }
 
   return Json;
 }
 
-std::string CondChainInfo::getReturnStr(ASTContext *Context,
-                                        std::string ReturnType) {
-  std::string Result = "";
-  std::string Str;
+string CondChainInfo::getReturnStr(ASTContext *Context,
+                                        string ReturnType) {
+  string Result = "";
+  string Str;
   raw_string_ostream OS(Str);
   const CFGBlock *Blk = Path[Path.size() - 2];
   if (!Blk->hasNoReturnElement()) {
-    if (std::optional<CFGStmt> S = Blk->back().getAs<CFGStmt>()) {
+    if (optional<CFGStmt> S = Blk->back().getAs<CFGStmt>()) {
       if (S->getStmt()->getStmtClass() == Stmt::ReturnStmtClass) {
         const ReturnStmt *RS = cast<ReturnStmt>(S->getStmt());
         RS->getRetValue()->printPretty(OS, nullptr,

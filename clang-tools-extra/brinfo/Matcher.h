@@ -2,35 +2,32 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Execution.h"
 
-using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::tooling;
-using namespace llvm;
 
-extern cl::opt<std::string> FunctionName;
-extern cl::opt<std::string> ClassName;
+extern cl::opt<string> FunctionName;
+extern cl::opt<string> ClassName;
 extern cl::opt<bool> DumpCFG;
 
 namespace BrInfo {
 
 class FuncAnalysis : public MatchFinder::MatchCallback {
   Analysis &Analyzer;
-  std::string FilePath;
-  std::string ProjectPath;
+  string FilePath;
+  string ProjectPath;
 
 public:
-  FuncAnalysis(Analysis &Analyzer, std::string FilePath,
-               std::string ProjectPath)
+  FuncAnalysis(Analysis &Analyzer, string FilePath, string ProjectPath)
       : Analyzer(Analyzer), FilePath(FilePath), ProjectPath(ProjectPath) {}
 
   virtual void run(const MatchFinder::MatchResult &Result) override {
     if (const FunctionDecl *Func =
             Result.Nodes.getNodeAs<FunctionDecl>("func")) {
-      std::string FileName =
+      string FileName =
           Result.SourceManager->getFilename(Func->getLocation()).str();
       SmallVector<char, 128> RealPath;
       sys::fs::real_path(FileName, RealPath);
-      std::string ResolvedPath(RealPath.begin(), RealPath.end());
+      string ResolvedPath(RealPath.begin(), RealPath.end());
       if (FilePath != ResolvedPath)
         return;
       if (Func->getDeclKind() == Decl::CXXConstructor ||
@@ -51,7 +48,7 @@ public:
           Blk->dump();
           for (CFGElement E : Blk->Elements) {
             E.dump();
-            if (std::optional<CFGStmt> S = E.getAs<CFGStmt>()) {
+            if (optional<CFGStmt> S = E.getAs<CFGStmt>()) {
               S->getStmt()->dumpColor();
             }
           }
@@ -61,25 +58,25 @@ public:
           }
         } */
 
-        Analyzer.init(Cfg.get(), Result.Context, Func);
+        Analyzer.init(Cfg.get(), Result.Context, Func->getCanonicalDecl());
         Analyzer.analyze();
       }
     }
   }
 };
 
-inline std::string getFileName(std::string SourcePath) {
+inline string getFileName(string SourcePath) {
   size_t Pos = SourcePath.find_last_of("/");
-  if (Pos != std::string::npos)
+  if (Pos != string::npos)
     return SourcePath.substr(Pos + 1);
   return SourcePath;
 }
 
-inline int run(ClangTool &Tool, std::string ProjectPath) {
-  std::string FileName = getFileName(Tool.getSourcePaths()[0]);
+inline int run(ClangTool &Tool, string ProjectPath) {
+  string FileName = getFileName(Tool.getSourcePaths()[0]);
   SmallVector<char, 128> RealPath;
   sys::fs::real_path(Tool.getSourcePaths()[0], RealPath);
-  std::string FilePath(RealPath.begin(), RealPath.end());
+  string FilePath(RealPath.begin(), RealPath.end());
   Analysis Analyzer;
   FuncAnalysis FuncAnalyzer(Analyzer, FilePath, ProjectPath);
   MatchFinder Finder;

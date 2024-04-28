@@ -4,12 +4,10 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/Execution.h"
 
-using namespace clang;
 using namespace clang::tooling;
-using namespace llvm;
 
-extern cl::opt<std::string> FunctionName;
-extern cl::opt<std::string> ClassName;
+extern cl::opt<string> FunctionName;
+extern cl::opt<string> ClassName;
 extern cl::opt<bool> DumpCFG;
 
 namespace BrInfo {
@@ -29,7 +27,7 @@ public:
         // Func->getBody()->dumpPretty(Context);
         // if (Func->getSourceRange()
         //         .printToString(Context.getSourceManager())
-        //         .find("330:1") == std::string::npos) {
+        //         .find("330:1") == string::npos) {
         //   return true;
         // }
         auto BO = CFG::BuildOptions();
@@ -42,7 +40,7 @@ public:
                             Func->getNameAsString(), Func->getNameAsString());
         // for (CFGBlock *Blk : Cfg->nodes()) {
         //   for (CFGElement E : Blk->Elements) {
-        //     if (std::optional<CFGStmt> S = E.getAs<CFGStmt>()) {
+        //     if (optional<CFGStmt> S = E.getAs<CFGStmt>()) {
         //       S->getStmt()->dumpColor();
         //     }
         //   }
@@ -61,13 +59,13 @@ public:
 class BrInfoASTConsumer : public ASTConsumer {
 
   BrInfoVisitor Visitor;
-  std::string InFile;
+  string InFile;
 
 public:
-  BrInfoASTConsumer(ASTContext &Context, std::string InFile)
+  BrInfoASTConsumer(ASTContext &Context, string InFile)
       : Visitor(Context), InFile(InFile) {}
 
-  bool isUserSourceCode(const std::string Filename) {
+  bool isUserSourceCode(const string Filename) {
     if (InFile.compare(Filename) == 0)
       return true;
     return false;
@@ -78,7 +76,7 @@ public:
     auto Range = TranslationUnitDecl->decls();
 
     for (auto *Decl : Range) {
-      std::string Filename =
+      string Filename =
           Context.getSourceManager().getFilename(Decl->getLocation()).str();
 
       if (isUserSourceCode(Filename)) {
@@ -91,11 +89,10 @@ public:
 
 class BrInfoAction : public ASTFrontendAction {
 public:
-  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
-                                                 StringRef InFile) override {
+  unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
+                                            StringRef InFile) override {
     // outs() << "Processing " << InFile << "\n";
-    return std::make_unique<BrInfoASTConsumer>(CI.getASTContext(),
-                                               InFile.str());
+    return make_unique<BrInfoASTConsumer>(CI.getASTContext(), InFile.str());
   }
 };
 

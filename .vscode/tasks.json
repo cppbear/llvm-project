@@ -1,0 +1,178 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build/debug",
+                "--target",
+                "brinfo",
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "build release",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build/release",
+                "--target",
+                "brinfo",
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "clean&build debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build/debug",
+                "--target",
+                "brinfo",
+                "-j",
+                "6"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "CMake config debug"
+        },
+        {
+            "label": "CMake config debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "llvm",
+                "-B",
+                "build/debug",
+                "-G",
+                "Ninja",
+                "-DLLVM_ENABLE_PROJECTS=\"clang;clang-tools-extra\"",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DLLVM_USE_LINKER=lld",
+                "-DLLVM_INSTALL_PREFIX=../../llvm/debug",
+                "-DLLVM_TARGETS_TO_BUILD=host"
+            ],
+            "group": {
+                "kind": "none",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "clean debug"
+        },
+        {
+            "label": "clean debug",
+            "type": "shell",
+            "command": "rm",
+            "args": [
+                "-rf",
+                "build/debug"
+            ],
+            "group": {
+                "kind": "none",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "clean&build release",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build/release",
+                "--target",
+                "brinfo",
+                "-j",
+                "6"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "CMake config release"
+        },
+        {
+            "label": "CMake config release",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "llvm",
+                "-B",
+                "build/release",
+                "-G",
+                "Ninja",
+                "-DLLVM_ENABLE_PROJECTS=\"clang;clang-tools-extra\"",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DLLVM_USE_LINKER=lld",
+                "-DLLVM_INSTALL_PREFIX=../../llvm/release",
+                "-DLLVM_TARGETS_TO_BUILD=host",
+                "-DLLVM_ENABLE_DUMP=ON"
+            ],
+            "group": {
+                "kind": "none",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "clean release"
+        },
+        {
+            "label": "clean release",
+            "type": "shell",
+            "command": "rm",
+            "args": [
+                "-rf",
+                "build/release"
+            ],
+            "group": {
+                "kind": "none",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        }
+    ]
+}

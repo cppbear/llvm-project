@@ -35,15 +35,15 @@
 // Set up the command line options
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::OptionCategory BrInfoCategory("brinfo options");
-cl::opt<std::string> FunctionName("f",
+cl::opt<string> FunctionName("f",
                                   cl::desc("Specify the function to analyze"),
                                   cl::value_desc("string"),
                                   cl::cat(BrInfoCategory));
-cl::opt<std::string> ClassName("c",
+cl::opt<string> ClassName("c",
                                cl::desc("Specify the class of the function"),
                                cl::value_desc("string"),
                                cl::cat(BrInfoCategory));
-static cl::opt<std::string> ProjectPath("project", cl::Required,
+static cl::opt<string> ProjectPath("project", cl::Required,
                                  cl::desc("Specify the projrct path"),
                                  cl::value_desc("string"),
                                  cl::cat(BrInfoCategory));
@@ -63,7 +63,7 @@ int main(int argc, const char **argv) {
   }
   SmallVector<char, 128> RealPath;
   sys::fs::real_path(ProjectPath, RealPath);
-  std::string ProjectPathStr(RealPath.begin(), RealPath.end());
+  string ProjectPathStr(RealPath.begin(), RealPath.end());
   ClangTool Tool(OptionParser.getCompilations(),
                  OptionParser.getSourcePathList());
 

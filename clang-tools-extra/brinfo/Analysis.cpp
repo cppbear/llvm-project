@@ -4,11 +4,11 @@
 
 namespace BrInfo {
 
-std::string formatID(std::string ID) {
-  std::string Str;
+string formatID(string ID) {
+  string Str;
   size_t Size = ID.size();
   if (Size < 3) {
-    Str = std::string(3 - Size, '0') + ID;
+    Str = string(3 - Size, '0') + ID;
   } else {
     Str = ID;
   }
@@ -53,16 +53,16 @@ void Analysis::analyze() {
   clear();
 }
 
-void Analysis::dumpReqToJson(std::string ProjectPath, std::string FileName,
-                             std::string ClassName, std::string FuncName) {
-  std::string FilePath = ProjectPath;
+void Analysis::dumpReqToJson(string ProjectPath, string FileName,
+                             string ClassName, string FuncName) {
+  string FilePath = ProjectPath;
   if (Type == AnalysisType::FILE) {
     FilePath += "/" + FileName + "_req.json";
   } else {
     FilePath += "/" + (ClassName.empty() ? "" : ClassName + "_") + FuncName +
                 "_req.json";
   }
-  std::error_code EC;
+  error_code EC;
   llvm::raw_fd_stream File(FilePath, EC);
   if (EC) {
     errs() << "Error: " << EC.message() << "\n";
@@ -84,7 +84,7 @@ void Analysis::setSignature() {
       Signature += ", ";
     }
     Signature +=
-        Param->getType().getAsString() + " " + Param->getNameAsString();
+        Param->getType().getAsString();
   }
   Signature += ")";
   // outs() << "Signature: " << Signature << "\n";
@@ -110,7 +110,9 @@ void Analysis::condChainsToReqs() {
   CondChainList &CondChains = BlkChain[ExitID];
   unsigned Size = CondChains.size();
 
-  std::string Input = "";
+  Json["function"] = FuncDecl->getNameAsString();
+
+  string Input = "";
   int I = 0;
   for (ParmVarDecl *Param : FuncDecl->parameters()) {
     if (I++ > 0) {
@@ -119,30 +121,32 @@ void Analysis::condChainsToReqs() {
     Input +=
         Param->getNameAsString() + " is a " + Param->getType().getAsString();
   }
-  std::string ClassName = "";
+  Json["input"] = Input;
+
+  string ClassName = "";
   if (FuncDecl->isCXXClassMember()) {
     ClassName = cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString();
   }
+  Json["class"] = ClassName;
 
   for (unsigned ID = 0; ID < Size; ++ID) {
     if (CondChains[ID].IsContra)
       continue;
-    std::string CondChainStr = formatID(std::to_string(ID));
-    std::string Result = "";
+    string CondChainStr = formatID(to_string(ID));
+    string Result = "";
     if (FuncDecl->getReturnType() != Context->VoidTy) {
       Result = CondChains[ID].getReturnStr(
           Context, FuncDecl->getReturnType().getAsString());
     }
     json J = CondChains[ID].toTestReqs(Context);
-    J["class"] = ClassName;
-    J["input"] = Input;
+
     J["result"] = Result;
     if (CondChains[ID].Path[0]->getBlockID() == Cfg->getEntry().getBlockID()) {
       J["incatch"] = false;
     } else {
       J["incatch"] = true;
     }
-    Json[CondChainStr] = J;
+    Json["chains"][CondChainStr] = J;
   }
   Results[Signature] = Json;
 }
@@ -189,11 +193,11 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     // }
     // errs() << "\n";
     BlkPath SortedPath = Path;
-    std::sort(SortedPath.begin(), SortedPath.end());
-    if (std::binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
+    llvm::sort(SortedPath.begin(), SortedPath.end());
+    if (binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
       // Loop detected
       for (auto Succ : Blk->succs()) {
-        if (!std::binary_search(SortedPath.begin(), SortedPath.end(), Succ)) {
+        if (!binary_search(SortedPath.begin(), SortedPath.end(), Succ)) {
           dfsTraverseCFG(Succ, Condition, false);
           return;
         }
@@ -235,7 +239,7 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     case Stmt::SwitchStmtClass: {
       CFGBlock *DefaultBlk = nullptr;
       Stmt *InnerCond = Blk->getTerminatorCondition();
-      std::vector<Stmt *> Cases;
+      vector<Stmt *> Cases;
       for (auto I : Blk->succs()) {
         Stmt *Label = I->getLabel();
         assert(Label);

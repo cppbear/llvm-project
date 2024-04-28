@@ -2,19 +2,17 @@
 #include "nlohmann/json.hpp"
 #include <set>
 
-using namespace clang;
-using namespace llvm;
 using json = nlohmann::json;
 
 namespace BrInfo {
 
-using StringList = std::vector<std::string>;
+using StringList = vector<string>;
 
 struct CondStatus {
   BaseCond *Condition = nullptr;
   bool Flag = false;
-  std::set<const Stmt *> LastDefStmts;
-  std::set<const ParmVarDecl *> ParmVars;
+  set<const Stmt *> LastDefStmts;
+  set<const ParmVarDecl *> ParmVars;
 
   //   bool operator==(const CondStatus &RHS) const {
   //     if (!Condition || !RHS.Condition)
@@ -46,21 +44,19 @@ struct CondStatus {
     return Condition->getCondStr() < RHS.Condition->getCondStr();
   }
 
-  std::string toString();
+  string toString();
   StringList getLastDefStrVec(ASTContext *Context);
 
   void dump(ASTContext *Context);
 };
 
-using CondChain = std::vector<CondStatus>; // A chain of conditions
-using BlkPath = std::vector<const CFGBlock *>;   // A path of basic blocks
+using CondChain = vector<CondStatus>;     // A chain of conditions
+using BlkPath = vector<const CFGBlock *>; // A path of basic blocks
 
 // last definition information for a condition chain
 struct LastDefInfo {
-  using DefInfoMap =
-      std::unordered_map<const Stmt *, std::map<std::string, bool>>;
-  using ParmInfoMap =
-      std::unordered_map<const ParmVarDecl *, std::map<std::string, bool>>;
+  using DefInfoMap = unordered_map<const Stmt *, map<string, bool>>;
+  using ParmInfoMap = unordered_map<const ParmVarDecl *, map<string, bool>>;
   DefInfoMap DefInfo;
   ParmInfoMap ParmInfo;
 };
@@ -68,7 +64,7 @@ struct LastDefInfo {
 // related conditions about a CallExpr
 struct CallExprInfo {
   const CallExpr *CE = nullptr;
-  std::unordered_map<std::string, bool> CondInfos;
+  unordered_map<string, bool> CondInfos;
 };
 
 struct CondChainInfo {
@@ -76,7 +72,7 @@ struct CondChainInfo {
   BlkPath Path;
   bool IsContra = false;
   LastDefInfo LastDefInfo; // last definition information in a condition chain
-  std::unordered_map<const FunctionDecl *, std::vector<CallExprInfo>>
+  unordered_map<const FunctionDecl *, vector<CallExprInfo>>
       FuncCallInfo; // function call information in a condition chain
 
   void analyze(ASTContext *Context);
@@ -97,11 +93,11 @@ struct CondChainInfo {
   void dumpFuncCallInfo();
   void dump(ASTContext *Context, unsigned Indent = 0);
   json toTestReqs(ASTContext *Context);
-  std::string getReturnStr(ASTContext *Context, std::string ReturnType);
+  string getReturnStr(ASTContext *Context, string ReturnType);
 };
 
 struct CondSimp {
-  std::unordered_map<const Stmt *, bool> Map;
+  unordered_map<const Stmt *, bool> Map;
   BaseCond *Cond = nullptr;
   bool Flag = false;
 };
