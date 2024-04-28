@@ -35,6 +35,7 @@ private:
 public:
   void setType(AnalysisType T);
   void init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD);
+  string getSignature() { return Signature; }
   void analyze();
   void dumpReqToJson(string ProjectPath, string FileName, string ClassName,
                      string FuncName);

@@ -40,10 +40,6 @@ public:
       // BO.AddEHEdges = true;
       auto Cfg = CFG::buildCFG(Func, Func->getBody(), Result.Context, BO);
       if (Cfg) {
-        if (DumpCFG)
-          Cfg->dumpCFGToDot(Result.Context->getLangOpts(), ProjectPath,
-                            Func->getNameAsString(), Func->getNameAsString());
-
         /* for (CFGBlock *Blk : Cfg->nodes()) {
           Blk->dump();
           for (CFGElement E : Blk->Elements) {
@@ -59,6 +55,9 @@ public:
         } */
 
         Analyzer.init(Cfg.get(), Result.Context, Func->getCanonicalDecl());
+        if (DumpCFG)
+          Cfg->dumpCFGToDot(Result.Context->getLangOpts(), ProjectPath,
+                            Analyzer.getSignature(), Func->getNameAsString());
         Analyzer.analyze();
       }
     }

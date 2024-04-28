@@ -342,8 +342,8 @@ void CondChainInfo::findContra() {
           const DeclStmt *DS = cast<DeclStmt>(S);
           for (const Decl *D : DS->decls()) {
             if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
-              const Expr *Init = VD->getInit()->IgnoreParenImpCasts();
-              if (Init) {
+              if (VD->hasInit()) {
+                const Expr *Init = VD->getInit()->IgnoreParenImpCasts();
                 if (Init->getStmtClass() == Stmt::CXXMemberCallExprClass ||
                     Init->getStmtClass() == Stmt::CallExprClass) {
                   IsContra = !setFuncCallInfo(Cond, cast<CallExpr>(Init));
@@ -651,8 +651,7 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
   return Json;
 }
 
-string CondChainInfo::getReturnStr(ASTContext *Context,
-                                        string ReturnType) {
+string CondChainInfo::getReturnStr(ASTContext *Context, string ReturnType) {
   string Result = "";
   string Str;
   raw_string_ostream OS(Str);
