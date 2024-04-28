@@ -546,8 +546,10 @@ bool CondChainInfo::examineLastDef(const DeclRefExpr *DeclRef,
     for (const Decl *D : DS->decls()) {
       if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD == DeclRef->getDecl()) {
-          Res = checkLiteralExpr(VD->getInit()->IgnoreParenImpCasts(),
-                                 CondStatus);
+          if (VD->hasInit()) {
+            Res = checkLiteralExpr(VD->getInit()->IgnoreParenImpCasts(),
+                                   CondStatus);
+          }
           break;
         }
       }

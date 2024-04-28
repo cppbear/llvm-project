@@ -83,8 +83,7 @@ void Analysis::setSignature() {
     if (I++ > 0) {
       Signature += ", ";
     }
-    Signature +=
-        Param->getType().getAsString();
+    Signature += Param->getType().getAsString();
   }
   Signature += ")";
   // outs() << "Signature: " << Signature << "\n";
@@ -215,8 +214,8 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     default:
       errs() << "Terminator: " << Terminator->getStmtClassName() << "\n";
       break;
+    case Stmt::ConditionalOperatorClass:
     case Stmt::BinaryOperatorClass:
-      LLVM_FALLTHROUGH;
     case Stmt::IfStmtClass: {
       BaseCond *Cond = nullptr;
       Stmt *InnerCond = Blk->getTerminatorCondition();
@@ -296,6 +295,11 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
         dfsTraverseCFG(*I, nullptr, false);
         Parent = ID;
       }
+      break;
+    }
+    case Stmt::ContinueStmtClass: {
+      dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
+      Parent = ID;
       break;
     }
     }
