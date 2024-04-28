@@ -639,6 +639,8 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
       CondVec.clear();
     }
     Json["mock"].push_back({{"function", FuncName},
+                            {"virtual", FD->isVirtualAsWritten()},
+                            {"static", FD->isStatic()},
                             {"conditions", ConditionsList},
                             {"return", FD->getReturnType().getAsString()}});
     ConditionsList.clear();
