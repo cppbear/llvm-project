@@ -21,7 +21,6 @@
 
 //   bool containsNewLine(Location begin, Location end);
 
-
 //   Location begin_{};
 //   Location end_{};
 //   Location current_{};
@@ -56,11 +55,10 @@
 //   return true;
 // }
 
-void myFunction() {
+void readComment() {
   for (int i = 0; i < 10; i++) {
     if (i % 2 == 0) {
-      continue;
+      std::cout << "Even\n";
     }
-    std::cout << (i > 5 ? "Greater than 5" : "Less than or equal to 5") << std::endl;
   }
 }
