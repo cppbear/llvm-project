@@ -623,6 +623,7 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
   }
   CondStatusSet.clear();
 
+  Json["mock"] = json::array();
   vector<StringList> Actions;
   StringList CondList;
   for (auto &FuncCall : FuncCallInfo) {
