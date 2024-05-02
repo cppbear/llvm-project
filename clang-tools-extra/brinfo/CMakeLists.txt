@@ -25,3 +25,7 @@ clang_target_link_libraries(brinfo
   # clangToolingRefactoring
   nlohmann_json::nlohmann_json
   )
+
+install(TARGETS brinfo
+  RUNTIME DESTINATION bin
+  COMPONENT brinfo)
