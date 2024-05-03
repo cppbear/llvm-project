@@ -609,6 +609,8 @@ void CondChainInfo::dump(ASTContext *Context, unsigned Indent) {
 
 json CondChainInfo::toTestReqs(ASTContext *Context) {
   json Json;
+  Json["preconditions"] = json::array();
+  Json["mock"] = json::array();
 
   set<CondStatus> CondStatusSet;
   for (CondStatus &Cond : Chain) {
@@ -623,7 +625,6 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
   }
   CondStatusSet.clear();
 
-  Json["mock"] = json::array();
   vector<StringList> Actions;
   StringList CondList;
   for (auto &FuncCall : FuncCallInfo) {
