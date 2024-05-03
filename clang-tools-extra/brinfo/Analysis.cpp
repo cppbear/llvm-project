@@ -147,6 +147,7 @@ void Analysis::condChainsToReqs() {
     }
     Json["chains"][CondChainStr] = J;
   }
+  Json["chains"]["size"] = Json["chains"].size();
   Results[Signature] = Json;
 }
 

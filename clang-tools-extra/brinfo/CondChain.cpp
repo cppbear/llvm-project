@@ -62,10 +62,10 @@ bool checkLiteralExpr(const Expr *Expr, CondStatus &CondStatus) {
   return Res;
 }
 
-void simplify(CondSimp &CondSimp, const BinaryOperator *BO, bool Flag);
+bool simplify(CondSimp &CondSimp, const BinaryOperator *BO, bool Flag);
 
 // derive the condition from the parent to the child
-void deriveCond(CondSimp &CondSimp, bool Flag, BinaryOperator::Opcode Opcode,
+bool deriveCond(CondSimp &CondSimp, bool Flag, BinaryOperator::Opcode Opcode,
                 const Expr *Known, const Expr *Unknown) {
   bool Val = CondSimp.Map[Known];
   switch (Opcode) {
@@ -82,7 +82,9 @@ void deriveCond(CondSimp &CondSimp, bool Flag, BinaryOperator::Opcode Opcode,
         CondSimp.Flag = Flag;
       }
     } else if (Flag) {
-      errs() << "Contradictory conditions\n";
+      // errs() << "Contradictory conditions\n";
+      // errs() << "&& Known: " << Val << " Flag: " << Flag << "\n";
+      return false;
     }
     break;
   case BinaryOperatorKind::BO_LOr:
@@ -98,12 +100,15 @@ void deriveCond(CondSimp &CondSimp, bool Flag, BinaryOperator::Opcode Opcode,
         CondSimp.Flag = Flag;
       }
     } else if (!Flag) {
-      errs() << "Contradictory conditions\n";
+      // errs() << "Contradictory conditions\n";
+      // errs() << "|| Known: " << Val << " Flag: " << Flag << "\n";
+      return false;
     }
     break;
   default:
     break;
   }
+  return true;
 }
 
 // transfer the condition from the children to the parent
@@ -151,23 +156,26 @@ bool transferCond(CondSimp &CondSimp, const Expr *Parent) {
   return Res;
 }
 
-void simplify(CondSimp &CondSimp, const BinaryOperator *BO, bool Flag) {
+bool simplify(CondSimp &CondSimp, const BinaryOperator *BO, bool Flag) {
+  bool Ret = true;
   Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
   Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
   bool LHSKnown = CondSimp.Map.find(LHS) != CondSimp.Map.end();
   bool RHSKnown = CondSimp.Map.find(RHS) != CondSimp.Map.end();
   if (LHSKnown && !RHSKnown) {
-    deriveCond(CondSimp, Flag, BO->getOpcode(), LHS, RHS);
+    Ret = deriveCond(CondSimp, Flag, BO->getOpcode(), LHS, RHS);
   } else if (!LHSKnown && RHSKnown) {
-    deriveCond(CondSimp, Flag, BO->getOpcode(), RHS, LHS);
+    Ret = deriveCond(CondSimp, Flag, BO->getOpcode(), RHS, LHS);
   } else if (!LHSKnown && !RHSKnown) {
     bool Res = transferCond(CondSimp, LHS) || transferCond(CondSimp, RHS);
     if (Res) {
-      simplify(CondSimp, BO, Flag);
+      Ret = simplify(CondSimp, BO, Flag);
     } else {
       errs() << "Unhandle condition\n";
+      Ret = false;
     }
   }
+  return Ret;
 }
 
 string CondStatus::toString() {
@@ -226,6 +234,8 @@ void CondStatus::dump(ASTContext *Context) {
 
 void CondChainInfo::analyze(ASTContext *Context) {
   simplifyConds();
+  if (IsContra)
+    return;
   setCondStr(Context);
   findCallExprs();
   traceBack();
@@ -243,7 +253,12 @@ void CondChainInfo::simplifyConds() {
       if (S->getStmtClass() == Stmt::BinaryOperatorClass) {
         const BinaryOperator *BO = cast<BinaryOperator>(S);
         if (BO->isLogicalOp()) {
-          simplify(CondSimp, BO, Cond.Flag);
+          bool Res = simplify(CondSimp, BO, Cond.Flag);
+          if (!Res) {
+            // errs() << "Contradictory CondChain in simplifyConds()\n";
+            IsContra = true;
+            return;
+          }
         }
       }
       if (CondSimp.Cond) {
@@ -321,6 +336,7 @@ void CondChainInfo::findContra() {
   if (IsContra)
     return;
   unsigned CondNum = Chain.size();
+  unordered_map<string, bool> CondMap;
   for (unsigned J = 0; J < CondNum; ++J) {
     CondStatus &Cond = Chain[J];
     if (Cond.Condition) {
@@ -383,6 +399,20 @@ void CondChainInfo::findContra() {
         IsContra = !setParmInfo(Cond, PVD);
         if (IsContra)
           return;
+      }
+      // handle condition without definitions or call expressions or ParmVars
+      if (!Cond.Condition->containCallExpr() && Cond.LastDefStmts.empty() &&
+          Cond.ParmVars.empty()) {
+        string CondStr = Cond.Condition->getCondStr();
+        bool Flag = Cond.Flag;
+        if (Cond.Condition->isNot())
+          Flag = !Flag;
+        if (CondMap.find(CondStr) == CondMap.end()) {
+          CondMap[CondStr] = Flag;
+        } else if (CondMap[CondStr] != Flag) {
+          IsContra = true;
+          return;
+        }
       }
     }
   }
@@ -610,7 +640,7 @@ void CondChainInfo::dump(ASTContext *Context, unsigned Indent) {
 json CondChainInfo::toTestReqs(ASTContext *Context) {
   json Json;
   Json["preconditions"] = json::array();
-  Json["mock"] = json::array();
+  Json["mock"] = json::object();
 
   set<CondStatus> CondStatusSet;
   for (CondStatus &Cond : Chain) {
@@ -642,11 +672,16 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
       Actions.push_back(CondList);
       CondList.clear();
     }
-    Json["mock"].push_back({{"function", FuncName},
-                            {"virtual", FD->isVirtualAsWritten()},
-                            {"static", FD->isStatic()},
-                            {"actions", Actions},
-                            {"return", FD->getReturnType().getAsString()}});
+    string ClassName = "";
+    if (FD->isCXXClassMember()) {
+      ClassName = cast<CXXRecordDecl>(FD->getParent())->getNameAsString();
+    }
+    Json["mock"][ClassName].push_back(
+        {{"function", FuncName},
+         {"virtual", FD->isVirtualAsWritten()},
+         {"static", FD->isStatic()},
+         {"actions", Actions},
+         {"return", FD->getReturnType().getAsString()}});
     Actions.clear();
   }
 
