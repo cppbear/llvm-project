@@ -50,6 +50,8 @@ static cl::opt<string> ProjectPath("project", cl::Required,
 cl::opt<bool> DumpCFG("cfg", cl::desc("Dump CFG to .dot file"),
                       cl::cat(BrInfoCategory));
 
+string RealProjectPath;
+
 int main(int argc, const char **argv) {
   auto ExpectedParser = CommonOptionsParser::create(argc, argv, BrInfoCategory);
   if (!ExpectedParser) {
@@ -64,8 +66,9 @@ int main(int argc, const char **argv) {
   SmallVector<char, 128> RealPath;
   sys::fs::real_path(ProjectPath, RealPath);
   string ProjectPathStr(RealPath.begin(), RealPath.end());
+  RealProjectPath = ProjectPathStr;
   ClangTool Tool(OptionParser.getCompilations(),
                  OptionParser.getSourcePathList());
 
-  return BrInfo::run(Tool, ProjectPathStr);
+  return BrInfo::run(Tool);
 }

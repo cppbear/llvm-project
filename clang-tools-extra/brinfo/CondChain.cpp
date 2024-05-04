@@ -1,5 +1,8 @@
 #include "CondChain.h"
 #include "OrderedSet.h"
+#include "clang/Basic/SourceManager.h"
+
+extern string RealProjectPath;
 
 namespace BrInfo {
 
@@ -676,10 +679,17 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
     if (FD->isCXXClassMember()) {
       ClassName = cast<CXXRecordDecl>(FD->getParent())->getNameAsString();
     }
+    string FileName =
+        Context->getSourceManager().getFilename(FD->getLocation()).str();
+    SmallVector<char, 128> RealPath;
+    sys::fs::real_path(FileName, RealPath);
+    string ResolvedPath(RealPath.begin(), RealPath.end());
+    // TODO: consider using the function signature to replace FuncName
     Json["mock"][ClassName].push_back(
         {{"function", FuncName},
          {"virtual", FD->isVirtualAsWritten()},
          {"static", FD->isStatic()},
+         {"user", ResolvedPath.find(RealProjectPath) != string::npos},
          {"actions", Actions},
          {"return", FD->getReturnType().getAsString()}});
     Actions.clear();

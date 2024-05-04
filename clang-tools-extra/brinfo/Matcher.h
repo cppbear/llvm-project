@@ -8,17 +8,17 @@ using namespace clang::tooling;
 extern cl::opt<string> FunctionName;
 extern cl::opt<string> ClassName;
 extern cl::opt<bool> DumpCFG;
+extern string RealProjectPath;
 
 namespace BrInfo {
 
 class FuncAnalysis : public MatchFinder::MatchCallback {
   Analysis &Analyzer;
   string FilePath;
-  string ProjectPath;
 
 public:
-  FuncAnalysis(Analysis &Analyzer, string FilePath, string ProjectPath)
-      : Analyzer(Analyzer), FilePath(FilePath), ProjectPath(ProjectPath) {}
+  FuncAnalysis(Analysis &Analyzer, string FilePath)
+      : Analyzer(Analyzer), FilePath(FilePath) {}
 
   virtual void run(const MatchFinder::MatchResult &Result) override {
     if (const FunctionDecl *Func =
@@ -56,7 +56,7 @@ public:
 
         Analyzer.init(Cfg.get(), Result.Context, Func->getCanonicalDecl());
         if (DumpCFG)
-          Cfg->dumpCFGToDot(Result.Context->getLangOpts(), ProjectPath,
+          Cfg->dumpCFGToDot(Result.Context->getLangOpts(), RealProjectPath,
                             Analyzer.getSignature(), Func->getNameAsString());
         Analyzer.analyze();
       }
@@ -71,13 +71,13 @@ inline string getFileName(string SourcePath) {
   return SourcePath;
 }
 
-inline int run(ClangTool &Tool, string ProjectPath) {
+inline int run(ClangTool &Tool) {
   string FileName = getFileName(Tool.getSourcePaths()[0]);
   SmallVector<char, 128> RealPath;
   sys::fs::real_path(Tool.getSourcePaths()[0], RealPath);
   string FilePath(RealPath.begin(), RealPath.end());
   Analysis Analyzer;
-  FuncAnalysis FuncAnalyzer(Analyzer, FilePath, ProjectPath);
+  FuncAnalysis FuncAnalyzer(Analyzer, FilePath);
   MatchFinder Finder;
   if (!FunctionName.empty()) {
     Analyzer.setType(AnalysisType::FUNC);
@@ -98,7 +98,7 @@ inline int run(ClangTool &Tool, string ProjectPath) {
     Finder.addMatcher(FuncMatcher, &FuncAnalyzer);
   }
   int Res = Tool.run(newFrontendActionFactory(&Finder).get());
-  Analyzer.dumpReqToJson(ProjectPath, FileName, ClassName, FunctionName);
+  Analyzer.dumpReqToJson(RealProjectPath, FileName, ClassName, FunctionName);
   return Res;
 }
 
