@@ -1,5 +1,6 @@
 #include "Analysis.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/SourceManager.h"
 #include <algorithm>
 
 namespace BrInfo {
@@ -110,6 +111,11 @@ void Analysis::condChainsToReqs() {
   unsigned Size = CondChains.size();
 
   Json["function"] = FuncDecl->getNameAsString();
+
+  string FileName =
+      Context->getSourceManager().getFilename(FuncDecl->getLocation()).str();
+  FileName = FileName.substr(FileName.find_last_of("/") + 1);
+  Json["file"] = FileName;
 
   string Input = "";
   int I = 0;

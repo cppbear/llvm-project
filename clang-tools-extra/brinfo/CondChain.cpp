@@ -676,8 +676,13 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
       CondList.clear();
     }
     string ClassName = "";
+    string ClassFile = "";
     if (FD->isCXXClassMember()) {
-      ClassName = cast<CXXRecordDecl>(FD->getParent())->getNameAsString();
+      const CXXRecordDecl *CRD = cast<CXXRecordDecl>(FD->getParent());
+      ClassFile =
+          Context->getSourceManager().getFilename(CRD->getLocation()).str();
+      ClassFile = ClassFile.substr(ClassFile.find_last_of("/") + 1);
+      ClassName = CRD->getNameAsString();
     }
     string FileName =
         Context->getSourceManager().getFilename(FD->getLocation()).str();
@@ -685,7 +690,8 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
     sys::fs::real_path(FileName, RealPath);
     string ResolvedPath(RealPath.begin(), RealPath.end());
     // TODO: consider using the function signature to replace FuncName
-    Json["mock"][ClassName].push_back(
+    Json["mock"][ClassName]["file"] = ClassFile;
+    Json["mock"][ClassName]["content"].push_back(
         {{"function", FuncName},
          {"virtual", FD->isVirtualAsWritten()},
          {"static", FD->isStatic()},
