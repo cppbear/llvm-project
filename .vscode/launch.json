@@ -23,13 +23,13 @@
             // ],
             "args": [
                 "--project",
-                "/home/chubei/workspace/openharmony/third_party_ninja",
+                "/home/chubei/workspace/openharmony/commonlibrary_c_utils",
                 "-p",
-                "/home/chubei/workspace/openharmony/third_party_ninja/build",
-                "/home/chubei/workspace/openharmony/third_party_ninja/src/ninja.cc",
-                // "--cfg",
-                "--",
-                "-ferror-limit=0"
+                "/home/chubei/workspace/openharmony/commonlibrary_c_utils/build",
+                "/home/chubei/workspace/openharmony/commonlibrary_c_utils/base/src/rwlock.cpp",
+                "--cfg",
+                // "--",
+                // "-ferror-limit=0"
             ],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "build debug",

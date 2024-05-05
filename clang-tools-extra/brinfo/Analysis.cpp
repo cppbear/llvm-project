@@ -1,6 +1,7 @@
 #include "Analysis.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceManager.h"
+#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 
 namespace BrInfo {
@@ -208,6 +209,7 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
           return;
         }
       }
+      return;
     }
     Chain.push_back({Condition, Flag, {}, {}});
     Path.push_back(Blk);
