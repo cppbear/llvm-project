@@ -650,8 +650,12 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
     if (Cond.Condition) {
       if (CondStatusSet.find(Cond) == CondStatusSet.end()) {
         CondStatusSet.insert(Cond);
+        bool Flag = Cond.Flag;
+        if (Cond.Condition->isNot())
+          Flag = !Flag;
         Json["preconditions"].push_back(
-            {{"condition", Cond.toString()},
+            {{"condition", Cond.Condition->getCondStr()},
+             {"value", Flag},
              {"last_def", Cond.getLastDefStrVec(Context)}});
       }
     }
