@@ -515,7 +515,7 @@ const Stmt *CondChainInfo::findLastDefStmt(const DeclRefExpr *DeclRef,
           const DeclStmt *DS = cast<DeclStmt>(Stmt);
           for (const Decl *D : DS->decls()) {
             if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
-              if (VD == DeclRef->getDecl()) {
+              if (VD == DeclRef->getDecl() && VD->hasInit()) {
                 // outs() << "VarDecl:\n";
                 // DS->dumpPretty(Context);
                 Found = true;
