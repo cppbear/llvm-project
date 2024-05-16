@@ -105,10 +105,13 @@ void Analysis::extractCondChains() {
 }
 
 long Analysis::findBestCover(unordered_set<string> &Uncovered,
-                             const CondChainList CondChains) {
+                             const CondChainList &CondChains,
+                             vector<bool> &Used) {
   unsigned MaxCover = 0;
-  long Index = 0;
+  long Index = -1;
   for (unsigned I = 0; I < CondChains.size(); ++I) {
+    if (Used[I])
+      continue;
     unsigned Cover = 0;
     for (const string &Cond : CondChains[I].getCondSet()) {
       if (Uncovered.find(Cond) != Uncovered.end()) {
@@ -140,15 +143,16 @@ unordered_set<unsigned> Analysis::findMinCover() {
   }
 
   unordered_set<string> Uncovered(AllElements);
-  while (!Uncovered.empty() && CondChains.size() > 0) {
-    long Index = findBestCover(Uncovered, CondChains);
+  vector<bool> Used(CondChains.size(), false);
+  while (!Uncovered.empty()) {
+    long Index = findBestCover(Uncovered, CondChains, Used);
     if (Index == -1)
       break;
     for (const string &Cond : CondChains[Index].getCondSet()) {
       Uncovered.erase(Cond);
     }
     Cover.insert(Index);
-    CondChains.erase(CondChains.begin() + Index);
+    Used[Index] = true;
   }
   return Cover;
 }

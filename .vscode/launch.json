@@ -27,7 +27,9 @@
                 "-p",
                 "/home/chubei/workspace/openharmony/commonlibrary_c_utils/build",
                 "/home/chubei/workspace/openharmony/commonlibrary_c_utils/base/src/rwlock.cpp",
-                "--cfg",
+                "-f",
+                "LockRead"
+                // "--cfg",
                 // "--",
                 // "-ferror-limit=0"
             ],

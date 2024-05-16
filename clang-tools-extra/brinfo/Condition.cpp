@@ -99,29 +99,6 @@ void BaseCond::setCondStr(const ASTContext *Context) {
 
 void IfCond::dump(const ASTContext *Context) { Cond->dumpPretty(*Context); }
 
-// void IfCond::setCondStr(const ASTContext &Context) {
-//   llvm::raw_string_ostream OS(CondStr);
-//   if (Cond->getStmtClass() == Stmt::BinaryOperatorClass &&
-//       cast<BinaryOperator>(Cond)->getOpcode() == BinaryOperatorKind::BO_NE) {
-//     // IsNot = true;
-//     Expr *LHS = cast<BinaryOperator>(Cond)->getLHS()->IgnoreParenImpCasts();
-//     Expr *RHS = cast<BinaryOperator>(Cond)->getRHS()->IgnoreParenImpCasts();
-//     LHS->printPretty(OS, nullptr, Context.getPrintingPolicy());
-//     OS << " == ";
-//     RHS->printPretty(OS, nullptr, Context.getPrintingPolicy());
-//   } else if (Cond->getStmtClass() == Stmt::UnaryOperatorClass &&
-//              cast<UnaryOperator>(Cond)->getOpcode() ==
-//                  UnaryOperatorKind::UO_LNot) {
-//     // IsNot = true;
-//     Expr *SubExpr =
-//         cast<UnaryOperator>(Cond)->getSubExpr()->IgnoreParenImpCasts();
-//     SubExpr->printPretty(OS, nullptr, Context.getPrintingPolicy());
-//   } else {
-//     Cond->printPretty(OS, nullptr, Context.getPrintingPolicy());
-//   }
-//   rtrim(CondStr);
-// }
-
 string IfCond::toString(const ASTContext *Context) {
   string Str;
   llvm::raw_string_ostream OS(Str);
