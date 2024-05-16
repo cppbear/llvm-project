@@ -204,7 +204,7 @@ void Analysis::condChainsToReqs() {
           Context, FuncDecl->getReturnType().getAsString());
     }
     json J = CondChains[ID].toTestReqs(Context);
-    if (MinCover.find(ID) == MinCover.end())
+    if (!MinCover.empty() && MinCover.find(ID) == MinCover.end())
       J["mincover"] = false;
     else
       J["mincover"] = true;
