@@ -194,6 +194,7 @@ void Analysis::condChainsToReqs() {
   }
   Json["class"] = ClassName;
 
+  unsigned MinCoverNum = 0;
   for (unsigned ID = 0; ID < Size; ++ID) {
     // if (CondChains[ID].IsContra)
     //   continue;
@@ -206,8 +207,10 @@ void Analysis::condChainsToReqs() {
     json J = CondChains[ID].toTestReqs(Context);
     if (!MinCover.empty() && MinCover.find(ID) == MinCover.end())
       J["mincover"] = false;
-    else
+    else {
       J["mincover"] = true;
+      ++MinCoverNum;
+    }
     J["result"] = Result;
     if (CondChains[ID].Path[0]->getBlockID() == Cfg->getEntry().getBlockID()) {
       J["incatch"] = false;
@@ -217,7 +220,7 @@ void Analysis::condChainsToReqs() {
     Json["chains"][CondChainStr] = J;
   }
   Json["chains"]["size"] = Json["chains"].size();
-  Json["chains"]["mincover"] = MinCover.size();
+  Json["chains"]["mincover"] = MinCoverNum;
   Results[Signature] = Json;
 }
 
