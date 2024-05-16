@@ -104,7 +104,7 @@ void Analysis::extractCondChains() {
   }
 }
 
-long Analysis::findBestCover(unordered_set<string> &Uncovered,
+long Analysis::findBestCover(set<pair<const Stmt *, bool>> &Uncovered,
                              const CondChainList &CondChains,
                              vector<bool> &Used) {
   unsigned MaxCover = 0;
@@ -113,7 +113,7 @@ long Analysis::findBestCover(unordered_set<string> &Uncovered,
     if (Used[I])
       continue;
     unsigned Cover = 0;
-    for (const string &Cond : CondChains[I].getCondSet()) {
+    for (const pair<const Stmt *, bool> &Cond : CondChains[I].getCondSet()) {
       if (Uncovered.find(Cond) != Uncovered.end()) {
         ++Cover;
       }
@@ -127,7 +127,7 @@ long Analysis::findBestCover(unordered_set<string> &Uncovered,
 }
 
 unordered_set<unsigned> Analysis::findMinCover() {
-  unordered_set<string> AllElements;
+  set<pair<const Stmt *, bool>> AllElements;
   unordered_set<unsigned> Cover;
   unsigned ExitID = Cfg->getExit().getBlockID();
   CondChainList CondChains = BlkChain[ExitID];
@@ -138,17 +138,17 @@ unordered_set<unsigned> Analysis::findMinCover() {
                    CondChains.end());
 
   for (CondChainInfo &ChainInfo : CondChains) {
-    AllElements.insert(ChainInfo.getCondSet().begin(),
-                       ChainInfo.getCondSet().end());
+    AllElements.merge(ChainInfo.getCondSet());
   }
 
-  unordered_set<string> Uncovered(AllElements);
+  set<pair<const Stmt *, bool>> Uncovered(AllElements);
   vector<bool> Used(CondChains.size(), false);
   while (!Uncovered.empty()) {
     long Index = findBestCover(Uncovered, CondChains, Used);
     if (Index == -1)
       break;
-    for (const string &Cond : CondChains[Index].getCondSet()) {
+    for (const pair<const Stmt *, bool> &Cond :
+         CondChains[Index].getCondSet()) {
       Uncovered.erase(Cond);
     }
     Cover.insert(Index);

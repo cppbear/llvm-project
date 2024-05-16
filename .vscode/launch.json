@@ -23,12 +23,12 @@
             // ],
             "args": [
                 "--project",
-                "/home/chubei/workspace/openharmony/commonlibrary_c_utils",
+                "/home/chubei/workspace/openharmony/third_party_ninja",
                 "-p",
-                "/home/chubei/workspace/openharmony/commonlibrary_c_utils/build",
-                "/home/chubei/workspace/openharmony/commonlibrary_c_utils/base/src/rwlock.cpp",
+                "/home/chubei/workspace/openharmony/third_party_ninja/build",
+                "/home/chubei/workspace/openharmony/third_party_ninja/src/status.cc",
                 "-f",
-                "LockRead"
+                "BuildEdgeStarted"
                 // "--cfg",
                 // "--",
                 // "-ferror-limit=0"

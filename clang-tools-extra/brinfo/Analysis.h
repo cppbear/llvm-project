@@ -23,7 +23,7 @@ private:
 
   void setSignature();
   void extractCondChains();
-  long findBestCover(unordered_set<string> &Uncovered,
+  long findBestCover(set<pair<const Stmt *, bool>> &Uncovered,
                      const CondChainList &CondChains, vector<bool> &Used);
   unordered_set<unsigned> findMinCover();
   void condChainsToReqs();
