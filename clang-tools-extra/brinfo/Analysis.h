@@ -23,6 +23,9 @@ private:
 
   void setSignature();
   void extractCondChains();
+  long findBestCover(unordered_set<string> &Uncovered,
+                         const CondChainList SunSets);
+  unordered_set<unsigned> findMinCover();
   void condChainsToReqs();
   void clear();
 

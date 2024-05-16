@@ -1,6 +1,7 @@
 #include "Condition.h"
 #include "nlohmann/json.hpp"
 #include <set>
+#include <unordered_set>
 
 using json = nlohmann::json;
 
@@ -94,6 +95,9 @@ struct CondChainInfo {
   void dump(ASTContext *Context, unsigned Indent = 0);
   json toTestReqs(ASTContext *Context);
   string getReturnStr(ASTContext *Context, string ReturnType);
+
+  unsigned getCondNum() const;
+  unordered_set<string> getCondSet() const;
 };
 
 struct CondSimp {

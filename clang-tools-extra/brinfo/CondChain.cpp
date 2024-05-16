@@ -727,4 +727,28 @@ string CondChainInfo::getReturnStr(ASTContext *Context, string ReturnType) {
   return Result;
 }
 
+unsigned CondChainInfo::getCondNum() const {
+  unsigned Num = 0;
+  for (CondStatus Cond : Chain) {
+    if (Cond.Condition)
+      ++Num;
+  }
+  return Num;
+}
+
+unordered_set<string> CondChainInfo::getCondSet() const {
+  unordered_set<string> Set;
+  for (CondStatus Cond : Chain) {
+    if (Cond.Condition) {
+      string Value;
+      if (Cond.Condition->isNot())
+        Value = Cond.Flag ? "false" : "true";
+      else
+        Value = Cond.Flag ? "true" : "false";
+      Set.insert(Cond.Condition->getCondStr() + " " + Value);
+    }
+  }
+  return Set;
+}
+
 } // namespace BrInfo

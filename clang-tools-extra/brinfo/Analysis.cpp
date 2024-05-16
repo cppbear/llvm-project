@@ -104,12 +104,67 @@ void Analysis::extractCondChains() {
   }
 }
 
+long Analysis::findBestCover(unordered_set<string> &Uncovered,
+                             const CondChainList CondChains) {
+  unsigned MaxCover = 0;
+  long Index = 0;
+  for (unsigned I = 0; I < CondChains.size(); ++I) {
+    unsigned Cover = 0;
+    for (const string &Cond : CondChains[I].getCondSet()) {
+      if (Uncovered.find(Cond) != Uncovered.end()) {
+        ++Cover;
+      }
+    }
+    if (Cover > MaxCover) {
+      MaxCover = Cover;
+      Index = (long)I;
+    }
+  }
+  return Index;
+}
+
+unordered_set<unsigned> Analysis::findMinCover() {
+  unordered_set<string> AllElements;
+  unordered_set<unsigned> Cover;
+  unsigned ExitID = Cfg->getExit().getBlockID();
+  CondChainList CondChains = BlkChain[ExitID];
+  CondChains.erase(remove_if(CondChains.begin(), CondChains.end(),
+                             [](const CondChainInfo &ChainInfo) {
+                               return ChainInfo.IsContra;
+                             }),
+                   CondChains.end());
+
+  for (CondChainInfo &ChainInfo : CondChains) {
+    AllElements.insert(ChainInfo.getCondSet().begin(),
+                       ChainInfo.getCondSet().end());
+  }
+
+  unordered_set<string> Uncovered(AllElements);
+  while (!Uncovered.empty() && CondChains.size() > 0) {
+    long Index = findBestCover(Uncovered, CondChains);
+    if (Index == -1)
+      break;
+    for (const string &Cond : CondChains[Index].getCondSet()) {
+      Uncovered.erase(Cond);
+    }
+    Cover.insert(Index);
+    CondChains.erase(CondChains.begin() + Index);
+  }
+  return Cover;
+}
+
 void Analysis::condChainsToReqs() {
   json Json;
 
   unsigned ExitID = Cfg->getExit().getBlockID();
-  CondChainList &CondChains = BlkChain[ExitID];
+  CondChainList CondChains = BlkChain[ExitID];
+  CondChains.erase(remove_if(CondChains.begin(), CondChains.end(),
+                             [](const CondChainInfo &ChainInfo) {
+                               return ChainInfo.IsContra;
+                             }),
+                   CondChains.end());
   unsigned Size = CondChains.size();
+  unordered_set<unsigned> MinCover = findMinCover();
 
   Json["function"] = FuncDecl->getNameAsString();
 
@@ -136,8 +191,8 @@ void Analysis::condChainsToReqs() {
   Json["class"] = ClassName;
 
   for (unsigned ID = 0; ID < Size; ++ID) {
-    if (CondChains[ID].IsContra)
-      continue;
+    // if (CondChains[ID].IsContra)
+    //   continue;
     string CondChainStr = formatID(to_string(ID));
     string Result = "";
     if (FuncDecl->getReturnType() != Context->VoidTy) {
@@ -145,7 +200,10 @@ void Analysis::condChainsToReqs() {
           Context, FuncDecl->getReturnType().getAsString());
     }
     json J = CondChains[ID].toTestReqs(Context);
-
+    if (MinCover.find(ID) == MinCover.end())
+      J["mincover"] = false;
+    else
+      J["mincover"] = true;
     J["result"] = Result;
     if (CondChains[ID].Path[0]->getBlockID() == Cfg->getEntry().getBlockID()) {
       J["incatch"] = false;
@@ -155,6 +213,7 @@ void Analysis::condChainsToReqs() {
     Json["chains"][CondChainStr] = J;
   }
   Json["chains"]["size"] = Json["chains"].size();
+  Json["chains"]["mincover"] = MinCover.size();
   Results[Signature] = Json;
 }
 
