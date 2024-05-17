@@ -1,6 +1,6 @@
-# BrInfo
+# IncludeFinder
 
-该工具能够对于指定C++源码文件分析其中函数的条件链。
+该工具能够对于指定C++源码文件分析其中包含的位于项目内的头文件。
 
 ## 前提
 
@@ -13,7 +13,7 @@
 ## 使用
 
 ```
-USAGE: brinfo [options] <source>
+USAGE: include-finder [options] <source0> [... <sourceN>]
 
 OPTIONS:
 
@@ -25,9 +25,6 @@ Generic Options:
 
 brinfo options:
 
-  -c <string>                 - Specify the class of the function
-  --cfg                       - Dump CFG to .dot file
-  -f <string>                 - Specify the function to analyze
   -p <string>                 - Build path
   --project=<string>          - Specify the projrct path
 
@@ -41,7 +38,7 @@ brinfo options:
         https://clang.llvm.org/docs/HowToSetupToolingForLLVM.html for an
         example of setting up Clang Tooling on a source tree.
 
-<source> specify the path of source file. The path is
+<source0> ... specify the paths of source files. These paths are
         looked up in the compile command database. If the path of a file is
         absolute, it needs to point into CMake's source tree. If the path is
         relative, the current working directory needs to be in the CMake
@@ -51,31 +48,17 @@ brinfo options:
         suffix of a path in the compile command database.
 ```
 
-`--project`选项指定项目所在路径，`-p`选项指定`compile_commands.json`的文件夹路径，`-f`和`-c`都是可选选项，分别用于指定所需分析的函数/方法和其所属的类。当不指定函数/方法时，将分析`<source>`源文件中所有函数/方法。
-
-`--cfg`选项用于将所分析的函数/方法的CFG图以dot文件保存在项目目录下。
+`--project`选项指定项目所在路径，`-p`选项指定`compile_commands.json`的文件夹路径。
 
 ### 示例
 
-1. 分析某个项目中某源文件中所有函数/方法
+1. 分析某个项目中某个/些源文件中所包含的项目内的所有头文件
 
    ```
-   brinfo --project path/to/project -p path/to/build/directory path/to/source/file
+   include-finder --project path/to/project -p path/to/build/directory path/to/source/file0 [path/to/source/file1 ...]
    ```
 
-2. 分析某个项目中某源文件中指定函数
-
-   ```
-   brinfo --project path/to/project -p path/to/build/directory path/to/source_file -f function_name
-   ```
-
-3. 分析某个项目中某源文件中指定方法，该方法属于某个类
-
-   ```
-   brinfo --project path/to/project -p path/to/build/directory path/to/source_file -c class_name -f function_name
-   ```
-
-该工具分析得到的条件链将保存为以`*_req.json`为文件名的json文件，该文件位于被分析的项目目录下。
+该工具分析得到的条件链将保存为以`includes.json`为文件名的json文件，该文件位于被分析的项目目录下。
 
 ## 构建
 
@@ -100,8 +83,7 @@ brinfo options:
 3. 构建并安装
 
    ```
-   cmake --build build --target brinfo
-   cmake --install build --component brinfo
+   cmake --build build --target include-finder
+   cmake --install build --component include-finder
    cmake --install build --component clang-resource-headers
    ```
-

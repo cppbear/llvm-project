@@ -49,3 +49,4 @@ if(CLANG_INCLUDE_TESTS)
 endif()
 
 add_subdirectory(brinfo)
+add_subdirectory(include-finder)
