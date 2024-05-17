@@ -58,7 +58,7 @@ brinfo options:
    include-finder --project path/to/project -p path/to/build/directory path/to/source/file0 [path/to/source/file1 ...]
    ```
 
-该工具分析得到的条件链将保存为以`includes.json`为文件名的json文件，该文件位于被分析的项目目录下。
+该工具分析得到的头文件路径将保存为以`includes.json`为文件名的json文件，该文件位于被分析的项目目录下。
 
 ## 构建
 
