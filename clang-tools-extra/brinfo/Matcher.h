@@ -23,6 +23,11 @@ public:
   virtual void run(const MatchFinder::MatchResult &Result) override {
     if (const FunctionDecl *Func =
             Result.Nodes.getNodeAs<FunctionDecl>("func")) {
+      // Skip main and test functions
+      if (Func->getNameAsString().empty() ||
+          Func->getNameAsString().find("main") != string::npos ||
+          Func->getNameAsString().find("test") != string::npos)
+        return;
       string FileName =
           Result.SourceManager->getFilename(Func->getLocation()).str();
       SmallVector<char, 128> RealPath;
