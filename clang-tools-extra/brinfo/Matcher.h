@@ -33,8 +33,10 @@ public:
       SmallVector<char, 128> RealPath;
       sys::fs::real_path(FileName, RealPath);
       string ResolvedPath(RealPath.begin(), RealPath.end());
+      // Skip if the file is not the same as the one we are analyzing
       if (FilePath != ResolvedPath)
         return;
+      // Skip constructors and destructors
       if (Func->getDeclKind() == Decl::CXXConstructor ||
           Func->getDeclKind() == Decl::CXXDestructor)
         return;
@@ -59,7 +61,9 @@ public:
           }
         } */
 
-        Analyzer.init(Cfg.get(), Result.Context, Func->getCanonicalDecl());
+        bool Flag = Analyzer.init(Cfg.get(), Result.Context, Func);
+        if (!Flag)
+          return;
         if (DumpCFG)
           Cfg->dumpCFGToDot(Result.Context->getLangOpts(), RealProjectPath,
                             Analyzer.getSignature(), Func->getNameAsString());

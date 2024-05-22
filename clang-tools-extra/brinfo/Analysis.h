@@ -12,10 +12,11 @@ class Analysis {
 private:
   CFG *Cfg;
   ASTContext *Context;
-  const FunctionDecl *FuncDecl;
+  const FunctionDecl *FocalFunc;
   AnalysisType Type;
   string Signature;
   json Results;
+  unordered_set<string> VisitedFuncs;
 
   vector<CondChainList> BlkChain;
   vector<unsigned char> ColorOfBlk;
@@ -37,7 +38,7 @@ private:
 
 public:
   void setType(AnalysisType T);
-  void init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD);
+  bool init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD);
   string getSignature() { return Signature; }
   void analyze();
   void dumpReqToJson(string ProjectPath, string FileName, string ClassName,

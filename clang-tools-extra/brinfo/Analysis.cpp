@@ -3,6 +3,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <sstream>
 
 namespace BrInfo {
 
@@ -29,10 +30,16 @@ void Analysis::setType(AnalysisType T) {
   }
 }
 
-void Analysis::init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
+bool Analysis::init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
+  string Loc = FD->getLocation().printToString(Context->getSourceManager());
+  if (VisitedFuncs.find(Loc) == VisitedFuncs.end()) {
+    VisitedFuncs.insert(Loc);
+  } else {
+    return false;
+  }
   Cfg = CFG;
   this->Context = Context;
-  FuncDecl = FD;
+  FocalFunc = FD;
   setSignature();
   BlkChain.resize(Cfg->getNumBlockIDs());
   ColorOfBlk.resize(Cfg->getNumBlockIDs(), 0);
@@ -41,6 +48,7 @@ void Analysis::init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
   //     CondChainInfo(&Cfg->getEntry()));
   BlkChain[Cfg->getEntry().getBlockID()].push_back(
       {{{nullptr, false, {}, {}}}, {&Cfg->getEntry()}, false, {}, {}});
+  return true;
 }
 
 void Analysis::analyze() {
@@ -74,14 +82,16 @@ void Analysis::dumpReqToJson(string ProjectPath, string FileName,
 }
 
 void Analysis::setSignature() {
-  Signature = FuncDecl->getReturnType().getAsString() + " ";
-  if (FuncDecl->isCXXClassMember()) {
+  const FunctionDecl *CanonicalDecl = FocalFunc->getCanonicalDecl();
+  Signature = CanonicalDecl->getReturnType().getAsString() + " ";
+  if (CanonicalDecl->isCXXClassMember()) {
     Signature +=
-        cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString() + "::";
+        cast<CXXRecordDecl>(CanonicalDecl->getParent())->getNameAsString() +
+        "::";
   }
-  Signature += FuncDecl->getNameAsString() + "(";
+  Signature += CanonicalDecl->getNameAsString() + "(";
   int I = 0;
-  for (ParmVarDecl *Param : FuncDecl->parameters()) {
+  for (ParmVarDecl *Param : CanonicalDecl->parameters()) {
     if (I++ > 0) {
       Signature += ", ";
     }
@@ -157,8 +167,27 @@ unordered_set<unsigned> Analysis::findMinCover() {
   return Cover;
 }
 
+vector<string> split(const string &Str, char Delim) {
+  vector<string> Tokens;
+  stringstream Ss(Str);
+  string Token;
+  while (getline(Ss, Token, Delim)) {
+    if (!Token.empty())
+      Tokens.push_back(Token);
+  }
+  return Tokens;
+}
+
 void Analysis::condChainsToReqs() {
   json Json;
+
+  string BeginLoc =
+      FocalFunc->getBeginLoc().printToString(Context->getSourceManager());
+  string EndLoc =
+      FocalFunc->getEndLoc().printToString(Context->getSourceManager());
+  string BeginLine = split(BeginLoc, ':')[1];
+  string EndLine = split(EndLoc, ':')[1];
+  Json["loc"] = {BeginLine, EndLine};
 
   unsigned ExitID = Cfg->getExit().getBlockID();
   CondChainList CondChains = BlkChain[ExitID];
@@ -170,16 +199,18 @@ void Analysis::condChainsToReqs() {
   unsigned Size = CondChains.size();
   unordered_set<unsigned> MinCover = findMinCover();
 
-  Json["function"] = FuncDecl->getNameAsString();
+  const FunctionDecl *CanonicalDecl = FocalFunc->getCanonicalDecl();
+  Json["function"] = CanonicalDecl->getNameAsString();
 
-  string FileName =
-      Context->getSourceManager().getFilename(FuncDecl->getLocation()).str();
+  string FileName = Context->getSourceManager()
+                        .getFilename(CanonicalDecl->getLocation())
+                        .str();
   FileName = FileName.substr(FileName.find_last_of("/") + 1);
   Json["file"] = FileName;
 
   string Input = "";
   int I = 0;
-  for (ParmVarDecl *Param : FuncDecl->parameters()) {
+  for (ParmVarDecl *Param : CanonicalDecl->parameters()) {
     if (I++ > 0) {
       Input += ", ";
     }
@@ -189,8 +220,9 @@ void Analysis::condChainsToReqs() {
   Json["input"] = Input;
 
   string ClassName = "";
-  if (FuncDecl->isCXXClassMember()) {
-    ClassName = cast<CXXRecordDecl>(FuncDecl->getParent())->getNameAsString();
+  if (CanonicalDecl->isCXXClassMember()) {
+    ClassName =
+        cast<CXXRecordDecl>(CanonicalDecl->getParent())->getNameAsString();
   }
   Json["class"] = ClassName;
 
@@ -200,9 +232,9 @@ void Analysis::condChainsToReqs() {
     //   continue;
     string CondChainStr = formatID(to_string(ID));
     string Result = "";
-    if (FuncDecl->getReturnType() != Context->VoidTy) {
+    if (CanonicalDecl->getReturnType() != Context->VoidTy) {
       Result = CondChains[ID].getReturnStr(
-          Context, FuncDecl->getReturnType().getAsString());
+          Context, CanonicalDecl->getReturnType().getAsString());
     }
     json J = CondChains[ID].toTestReqs(Context);
     if (!MinCover.empty() && MinCover.find(ID) == MinCover.end())
@@ -227,7 +259,7 @@ void Analysis::condChainsToReqs() {
 void Analysis::clear() {
   Cfg = nullptr;
   Context = nullptr;
-  FuncDecl = nullptr;
+  FocalFunc = nullptr;
   Signature.clear();
   BlkChain.clear();
   ColorOfBlk.clear();
