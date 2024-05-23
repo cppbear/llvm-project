@@ -15,16 +15,16 @@ CoutContext.cpp
 
 target_link_libraries(focxt
   PRIVATE
-  clangAST
-  clangASTMatchers
-  clangBasic
-  clangFrontend
-  clangSerialization
+  # clangAST
+  # clangASTMatchers
+  # clangBasic
+  # clangFrontend
+  # clangSerialization
   clangTooling
   nlohmann_json
-  clangLex
+  # clangLex
   )
 
-  install(TARGETS brinfo
+  install(TARGETS focxt
   RUNTIME DESTINATION bin
-  COMPONENT brinfo)
+  COMPONENT focxt)
