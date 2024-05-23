@@ -87,7 +87,7 @@ git clone https://github.com/cppbear/llvm-project.git && cd llvm-project
 
 ###### 配置CMake
 
-cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=host
+cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_DUMP=ON
 
 ###### 构建并安装
 
