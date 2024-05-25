@@ -45,10 +45,8 @@ public:
   bool hasClassMethodPath(std::string class_name, std::string signature);
   bool hasFunctionPath(std::string signature);
   void cout();
-  std::vector<std::pair<std::string, std::pair<std::string, std::string>>>
-  getSameTest(std::string function_name);
-  std::vector<std::pair<std::string, std::pair<std::string, std::string>>>
-  getDifferentTest(std::string second_parameter);
+  std::pair<std::string, std::pair<std::string, std::string>>
+  getTest(std::string second_parameter);
   bool hasClass(std::string class_name);
   std::vector<std::pair<std::string, std::string>>
   getClassConstructor(std::string class_name);

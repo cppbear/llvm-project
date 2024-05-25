@@ -95,6 +95,12 @@ json SignatureContext::get_j() {
      [var.its_namespace]["global_vars"]
          .push_back(var.global_var);
   }
+  if (function_name != "TestBody") {
+    j[file_path][class_name + "::" + function_name][signature]
+     ["function_body"] = json::object();
+    j[file_path][class_name + "::" + function_name][signature]
+     ["function_body"] = function_body;
+  }
   for (int i = 0; i < classes.size(); i++) {
     if (j[file_path][class_name + "::" + function_name][signature].find(
             classes[i].its_namespace) ==
@@ -367,6 +373,7 @@ SignatureContext get_signature_context(std::vector<FileContext> &file_contexts,
             for (auto function : file_context.functions) {
               if (function.signature == signature) {
                 signature_context.function_name = function.function_name;
+                signature_context.function_body = function.function_body;
                 break;
               }
             }
@@ -377,12 +384,15 @@ SignatureContext get_signature_context(std::vector<FileContext> &file_contexts,
                 for (auto method : a_class.constructors) {
                   if (method.signature == signature) {
                     signature_context.function_name = class_name;
+                    signature_context.function_body = method.function_body;
                     b = 1;
                     break;
                   }
                 }
                 if (b == 0 && a_class.destructor.signature == signature) {
                   signature_context.function_name = "~" + class_name;
+                  signature_context.function_body =
+                      a_class.destructor.function_body;
                 }
                 for (auto method : a_class.methods) {
                   if (b == 1) {
@@ -390,6 +400,7 @@ SignatureContext get_signature_context(std::vector<FileContext> &file_contexts,
                   }
                   if (method.signature == signature) {
                     signature_context.function_name = method.method_name;
+                    signature_context.function_body = method.function_body;
                     b = 1;
                     break;
                   }
@@ -467,93 +478,30 @@ SignatureContext get_signature_context(std::vector<FileContext> &file_contexts,
   }
 }
 
-std::vector<std::string> get_test_macro(std::string focal_path,
-                                        std::string focal_function) {
-  std::vector<std::string> ret;
-  std::ifstream file(focal_path);
-  if (!file.is_open()) {
-    std::cerr << "Unable to open the focal file!" << "\n";
-  }
-  std::string line;
-  bool is_inside_test_function = false;
-  int n = 0;
-  std::string a_macro;
-  while (getline(file, line)) {
-    if (line.find("TEST") != std::string::npos &&
-        line.substr(line.find_first_of(',') + 1,
-                    line.find_first_of(')') - line.find_first_of(',') - 1)
-                .find(focal_function) != std::string::npos) {
-      is_inside_test_function = true;
-    }
-    if (is_inside_test_function) {
-      if (n == 0 && line.find('{') == std::string::npos) {
-        a_macro = a_macro + line;
-        continue;
-      }
-      a_macro = a_macro + line;
-      for (int i = 0; i < line.size(); i++) {
-        if (line[i] == '{') {
-          n++;
-        } else if (line[i] == '}') {
-          n--;
-        }
-      }
-      if (n == 0) {
-        ret.push_back(a_macro);
-        is_inside_test_function = false;
-        a_macro = "";
-        continue;
-      }
+std::vector<TestMacro> get_may_tests(std::vector<FileContext> &file_contexts,
+                                     std::string class_name,
+                                     std::string function_name) {
+  std::vector<TestMacro> ret;
+  for (auto file_context : file_contexts) {
+    std::vector<TestMacro> file_may_test_macros =
+        file_context.get_may_test_macros(class_name, function_name);
+    for (auto test_macro : file_may_test_macros) {
+      ret.push_back(test_macro);
     }
   }
-  file.close();
   return ret;
 }
 
-std::vector<std::string> get_must_test_macro(std::string focal_path,
-                                             std::string second_parameter) {
-  std::vector<std::string> ret;
-  std::ifstream file(focal_path);
-  if (!file.is_open()) {
-    std::cerr << "Unable to open the focal file!" << "\n";
-  }
-  std::string line;
-  bool is_inside_test_function = false;
-  int n = 0;
-  std::string a_macro;
-  while (getline(file, line)) {
-    if (line.find("TEST") != std::string::npos &&
-        line.find_first_of(',') + 1 < line.find_first_of(')')) {
-      std::string key =
-          line.substr(line.find_first_of(',') + 1,
-                      line.find_first_of(')') - line.find_first_of(',') - 1);
-      key = key.substr(key.find_first_not_of(' '),
-                       key.find_last_of(' ') - key.find_first_not_of(' '));
-      if (key == second_parameter) {
-        is_inside_test_function = true;
-      }
-    }
-    if (is_inside_test_function) {
-      if (n == 0 && line.find('{') == std::string::npos) {
-        a_macro = a_macro + line;
-        continue;
-      }
-      a_macro = a_macro + line;
-      for (int i = 0; i < line.size(); i++) {
-        if (line[i] == '{') {
-          n++;
-        } else if (line[i] == '}') {
-          n--;
-        }
-      }
-      if (n == 0) {
-        ret.push_back(a_macro);
-        is_inside_test_function = false;
-        a_macro = "";
-        continue;
-      }
+std::vector<TestMacro> get_must_test(std::vector<FileContext> &file_contexts,
+                                     std::string second_parameter) {
+  std::vector<TestMacro> ret;
+  for (auto file_context : file_contexts) {
+    std::vector<TestMacro> file_must_test_macro =
+        file_context.get_must_test_macros(second_parameter);
+    if (file_must_test_macro.size() != 0) {
+      ret.push_back(file_must_test_macro[0]);
+      return ret;
     }
   }
-  file.close();
   return ret;
 }

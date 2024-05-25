@@ -91,6 +91,11 @@ struct ADefine {
   std::string define_body;
 };
 
+struct TestMacro {
+  std::string second_parameter;
+  std::string test_mecro;
+};
+
 class FileContext {
 public:
   std::string file_path;
@@ -99,6 +104,7 @@ public:
   std::vector<GlobalVar> global_vars;
   std::vector<Class> classes;
   std::vector<Function> functions;
+  std::vector<TestMacro> test_macros;
   FileContext() = default;
   FileContext(std::string file_path) : file_path(file_path) {}
   Class get_simple_class(std::string class_name);
@@ -111,6 +117,9 @@ public:
   bool class_has_method(std::string class_name, std::string signature);
   Method class_get_method(std::string class_name, std::string signature);
   Function get_function(std::string signature);
+  std::vector<TestMacro> get_may_test_macros(std::string class_name,
+                                             std::string function_name);
+  std::vector<TestMacro> get_must_test_macros(std::string second_parameter);
   void cout();
 };
 
@@ -134,12 +143,14 @@ public:
     get_includes();
     get_defines();
     get_global_vars();
+    get_test_macros();
     get_context();
   }
   void set_global_vars();
   void get_includes();
   void get_defines();
   void get_global_vars();
+  void get_test_macros();
   void get_context();
   FileContext get_file_context();
 };

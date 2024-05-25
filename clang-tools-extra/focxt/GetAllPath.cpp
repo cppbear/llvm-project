@@ -57,62 +57,19 @@ void AllContextPaths::cout() {
   }
 }
 
-std::vector<std::pair<std::string, std::pair<std::string, std::string>>>
-AllContextPaths::getSameTest(std::string function_name) {
-  std::vector<std::pair<std::string, std::pair<std::string, std::string>>> ret;
+std::pair<std::string, std::pair<std::string, std::string>>
+AllContextPaths::getTest(std::string second_parameter) {
   for (auto class_method_path : class_method_paths) {
-    bool b = 0;
-    for (int j = 0; j < ret.size(); j++) {
-      if (ret[j].first == class_method_path.class_name) {
-        b = 1;
-      }
-    }
-    if (b == 1) {
-      continue;
-    }
-    auto key = class_method_path.class_name;
-    size_t begin = key.find_first_of('_');
-    size_t end = key.substr(begin + 1).find_first_of('_');
-    std::string true_key = key.substr(begin + 1, end);
     if (class_method_path.class_name.find("Test") != std::string::npos &&
-        true_key.find(function_name) != std::string::npos &&
+        class_method_path.class_name.find(second_parameter) !=
+            std::string::npos &&
         class_method_path.signature.find("TestBody") != std::string::npos) {
       std::pair<std::string, std::string> class_function_name(
           class_method_path.class_name, class_method_path.signature);
-      ret.push_back(std::pair<std::string, std::pair<std::string, std::string>>(
-          class_method_path.path, class_function_name));
+      return std::pair<std::string, std::pair<std::string, std::string>>(
+          class_method_path.path, class_function_name);
     }
   }
-  return ret;
-}
-
-std::vector<std::pair<std::string, std::pair<std::string, std::string>>>
-AllContextPaths::getDifferentTest(std::string second_parameter) {
-  std::vector<std::pair<std::string, std::pair<std::string, std::string>>> ret;
-  for (auto class_method_path : class_method_paths) {
-    bool b = 0;
-    for (int j = 0; j < ret.size(); j++) {
-      if (ret[j].first == class_method_path.class_name) {
-        b = 1;
-      }
-    }
-    if (b == 1) {
-      continue;
-    }
-    auto key = class_method_path.class_name;
-    size_t begin = key.find_first_of('_');
-    size_t end = key.substr(begin + 1).find_first_of('_');
-    std::string true_key = key.substr(begin + 1, end);
-    if (class_method_path.class_name.find("Test") != std::string::npos &&
-        true_key == second_parameter &&
-        class_method_path.signature.find("TestBody") != std::string::npos) {
-      std::pair<std::string, std::string> class_function_name(
-          class_method_path.class_name, class_method_path.signature);
-      ret.push_back(std::pair<std::string, std::pair<std::string, std::string>>(
-          class_method_path.path, class_function_name));
-    }
-  }
-  return ret;
 }
 
 bool AllContextPaths::hasClass(std::string class_name) {
