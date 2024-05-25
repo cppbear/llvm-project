@@ -53,6 +53,7 @@ public:
   std::string signature;
   std::string class_name;
   std::string function_name;
+  std::string function_body;
   std::vector<std::string> includes;
   std::vector<ADefine> defines;
   std::vector<GlobalVar> global_vars;
@@ -71,7 +72,9 @@ SignatureContext get_signature_context(std::vector<FileContext> &file_contexts,
                                        std::string class_name,
                                        std::string signature);
 
-std::vector<std::string> get_test_macro(std::string focal_path,
-                                        std::string focal_function);
-std::vector<std::string> get_must_test_macro(std::string focal_path,
-                                             std::string second_parameter);
+std::vector<TestMacro> get_may_tests(std::vector<FileContext> &file_contexts,
+                                     std::string class_name,
+                                     std::string function_name);
+
+std::vector<TestMacro> get_must_test(std::vector<FileContext> &file_contexts,
+                                     std::string second_parameter);

@@ -64,6 +64,53 @@ void OneFileContext::get_includes() {
   file.close();
 }
 
+void OneFileContext::get_test_macros() {
+  std::ifstream file(file_path);
+  if (!file.is_open()) {
+    std::cerr << "Unable to open the focal file!" << "\n";
+  }
+  std::string line;
+  bool is_inside_test_function = false;
+  int n = 0;
+  std::string a_macro;
+  std::string key;
+  while (getline(file, line)) {
+    if (line.find("TEST") != std::string::npos &&
+        line.find("(") != std::string::npos &&
+        line.find(",") != std::string::npos &&
+        line.find(")") != std::string::npos) {
+      key = line.substr(line.find_first_of(',') + 1,
+                        line.find_first_of(')') - line.find_first_of(',') - 1);
+      key = key.substr(key.find_first_not_of(' '),
+                       key.find_last_of(' ') - key.find_first_not_of(' '));
+      is_inside_test_function = true;
+    }
+    if (is_inside_test_function) {
+      if (n == 0 && line.find('{') == std::string::npos) {
+        a_macro = a_macro + line;
+        continue;
+      }
+      a_macro = a_macro + line;
+      for (int i = 0; i < line.size(); i++) {
+        if (line[i] == '{') {
+          n++;
+        } else if (line[i] == '}') {
+          n--;
+        }
+      }
+      if (n == 0) {
+        TestMacro a_test_macro = {key, a_macro};
+        file_context.test_macros.push_back(a_test_macro);
+        is_inside_test_function = false;
+        a_macro = "";
+        key = "";
+        continue;
+      }
+    }
+  }
+  file.close();
+}
+
 class DefineGeter : public PPCallbacks {
 private:
   Preprocessor &PP;
@@ -877,6 +924,39 @@ Function FileContext::get_function(std::string signature) {
       return function;
     }
   }
+}
+
+std::vector<TestMacro>
+FileContext::get_may_test_macros(std::string class_name,
+                                 std::string function_name) {
+  std::vector<TestMacro> ret;
+  for (auto a_test_macro : test_macros) {
+    if (class_name == "class") {
+      if (a_test_macro.second_parameter.find(function_name) !=
+          std::string::npos) {
+        ret.push_back(a_test_macro);
+      }
+    } else {
+      if (a_test_macro.second_parameter.find(class_name) != std::string::npos &&
+          a_test_macro.second_parameter.find(function_name) !=
+              std::string::npos) {
+        ret.push_back(a_test_macro);
+      }
+    }
+  }
+  return ret;
+}
+
+std::vector<TestMacro>
+FileContext::get_must_test_macros(std::string second_parameter) {
+  std::vector<TestMacro> ret;
+  for (auto a_test_macro : test_macros) {
+    if (a_test_macro.second_parameter == second_parameter) {
+      ret.push_back(a_test_macro);
+      return ret;
+    }
+  }
+  return ret;
 }
 
 void FileContext::cout() {

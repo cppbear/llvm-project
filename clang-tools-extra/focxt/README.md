@@ -55,7 +55,7 @@ focxt options:
 ./focxt --project path/to/project --build path/to/build/directory {--may-test}
 ```
 
-​	其中--may-test是一个开关，搜索可能的测试函数。
+​	其中--may-test是一个开关，搜索可能的测试函数，由于TEST(TestSuiteName, TestName) { }会被展开为class TestSuiteName_TestName_Test，所以会搜索项目中TestName包含函数名的TEST宏和宏展开后的类。
 
 ###### 分析整个文件
 

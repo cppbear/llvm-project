@@ -170,51 +170,38 @@ int main(int argc, const char **argv) {
                                           [a_class.class_name +
                                            "::" + a_class.class_name];
           if (RealTestFlag) {
-            std::vector<
-                std::pair<std::string, std::pair<std::string, std::string>>>
-                MayTest = all_context_paths->getSameTest(a_class.class_name);
-            std::vector<std::string> test_macros =
-                get_test_macro(file_context.file_path, a_class.class_name);
+            std::vector<TestMacro> may_tests = get_may_tests(
+                file_contexts, a_class.class_name, a_class.class_name);
             temp_j[file_context.file_path]
                   [a_class.class_name + "::" + a_class.class_name]["may_test"] =
                       json::object();
-            for (auto may_test : MayTest) {
+            for (auto may_test : may_tests) {
+              std::pair<std::string, std::pair<std::string, std::string>>
+                  may_test_class_signature =
+                      all_context_paths->getTest(may_test.second_parameter);
               SignatureContext may_test_signature_context =
-                  get_signature_context(file_contexts, may_test.first,
-                                        may_test.second.first,
-                                        may_test.second.second);
+                  get_signature_context(file_contexts,
+                                        may_test_class_signature.first,
+                                        may_test_class_signature.second.first,
+                                        may_test_class_signature.second.second);
               json may_test_signature_j = may_test_signature_context.get_j();
+              temp_j[file_context.file_path]
+                    [a_class.class_name + "::" + a_class.class_name]["may_test"]
+                    [may_test.second_parameter] = json::object();
               for (auto [key, value] : may_test_signature_j.items()) {
                 for (auto [key1, value1] : value.items()) {
-                  std::string true_key;
-                  for (auto [key2, value2] : value1.items()) {
-                    size_t begin = key2.find_first_of('_');
-                    size_t end = key2.substr(begin + 1).find_first_of('_');
-                    true_key = key2.substr(begin + 1, end);
-                    temp_j[file_context.file_path]
-                          [a_class.class_name + "::" + a_class.class_name]
-                          ["may_test"][true_key] = json::object();
-                  }
                   temp_j[file_context.file_path]
                         [a_class.class_name + "::" + a_class.class_name]
-                        ["may_test"][true_key] = value1;
+                        ["may_test"][may_test.second_parameter] = value1;
                 }
               }
-            }
-            for (auto test_macro : test_macros) {
-              std::string key =
-                  test_macro.substr(test_macro.find_first_of(',') + 1,
-                                    test_macro.find_first_of(')') -
-                                        test_macro.find_first_of(',') - 1);
-              key = key.substr(key.find_first_not_of(' '),
-                               key.find_last_of(' ') -
-                                   key.find_first_not_of(' '));
               temp_j[file_context.file_path]
                     [a_class.class_name + "::" + a_class.class_name]["may_test"]
-                    [key]["test_macro"] = json::object();
+                    [may_test.second_parameter]["test_macro"] = json::object();
               temp_j[file_context.file_path]
                     [a_class.class_name + "::" + a_class.class_name]["may_test"]
-                    [key]["test_macro"] = test_macro;
+                    [may_test.second_parameter]["test_macro"] =
+                        may_test.test_mecro;
             }
           }
           j.merge_patch(temp_j);
@@ -238,50 +225,37 @@ int main(int argc, const char **argv) {
             destructor_signatre_j[file_context.file_path]
                                  [a_class.class_name + "::" + function_name];
         if (RealTestFlag) {
-          std::vector<
-              std::pair<std::string, std::pair<std::string, std::string>>>
-              MayTest = all_context_paths->getSameTest(function_name);
-          std::vector<std::string> test_macros =
-              get_test_macro(file_context.file_path, function_name);
+          std::vector<TestMacro> may_tests =
+              get_may_tests(file_contexts, a_class.class_name, function_name);
           temp_j[file_context.file_path]
                 [a_class.class_name + "::" + function_name]["may_test"] =
                     json::object();
-          for (auto may_test : MayTest) {
+          for (auto may_test : may_tests) {
+            std::pair<std::string, std::pair<std::string, std::string>>
+                may_test_class_signature =
+                    all_context_paths->getTest(may_test.second_parameter);
             SignatureContext may_test_signature_context = get_signature_context(
-                file_contexts, may_test.first, may_test.second.first,
-                may_test.second.second);
+                file_contexts, may_test_class_signature.first,
+                may_test_class_signature.second.first,
+                may_test_class_signature.second.second);
             json may_test_signature_j = may_test_signature_context.get_j();
+            temp_j[file_context.file_path]
+                  [a_class.class_name + "::" + function_name]["may_test"]
+                  [may_test.second_parameter] = json::object();
             for (auto [key, value] : may_test_signature_j.items()) {
               for (auto [key1, value1] : value.items()) {
-                std::string true_key;
-                for (auto [key2, value2] : value1.items()) {
-                  size_t begin = key2.find_first_of('_');
-                  size_t end = key2.substr(begin + 1).find_first_of('_');
-                  true_key = key2.substr(begin + 1, end);
-                  temp_j[file_context.file_path]
-                        [a_class.class_name + "::" + function_name]["may_test"]
-                        [true_key] = json::object();
-                }
                 temp_j[file_context.file_path]
                       [a_class.class_name + "::" + function_name]["may_test"]
-                      [true_key] = value1;
+                      [may_test.second_parameter] = value1;
               }
             }
-          }
-          for (auto test_macro : test_macros) {
-            std::string key =
-                test_macro.substr(test_macro.find_first_of(',') + 1,
-                                  test_macro.find_first_of(')') -
-                                      test_macro.find_first_of(',') - 1);
-            key =
-                key.substr(key.find_first_not_of(' '),
-                           key.find_last_of(' ') - key.find_first_not_of(' '));
             temp_j[file_context.file_path]
-                  [a_class.class_name + "::" + function_name]["may_test"][key]
-                  ["test_macro"] = json::object();
+                  [a_class.class_name + "::" + function_name]["may_test"]
+                  [may_test.second_parameter]["test_macro"] = json::object();
             temp_j[file_context.file_path]
-                  [a_class.class_name + "::" + function_name]["may_test"][key]
-                  ["test_macro"] = test_macro;
+                  [a_class.class_name + "::" + function_name]["may_test"]
+                  [may_test.second_parameter]["test_macro"] =
+                      may_test.test_mecro;
           }
         }
         j.merge_patch(temp_j);
@@ -305,51 +279,38 @@ int main(int argc, const char **argv) {
               method_signatre_j[file_context.file_path]
                                [a_class.class_name + "::" + method.method_name];
           if (RealTestFlag) {
-            std::vector<
-                std::pair<std::string, std::pair<std::string, std::string>>>
-                MayTest = all_context_paths->getSameTest(method.method_name);
-            std::vector<std::string> test_macros =
-                get_test_macro(file_context.file_path, method.method_name);
+            std::vector<TestMacro> may_tests = get_may_tests(
+                file_contexts, a_class.class_name, method.method_name);
             temp_j[file_context.file_path]
                   [a_class.class_name + "::" + method.method_name]["may_test"] =
                       json::object();
-            for (auto may_test : MayTest) {
+            for (auto may_test : may_tests) {
+              std::pair<std::string, std::pair<std::string, std::string>>
+                  may_test_class_signature =
+                      all_context_paths->getTest(may_test.second_parameter);
               SignatureContext may_test_signature_context =
-                  get_signature_context(file_contexts, may_test.first,
-                                        may_test.second.first,
-                                        may_test.second.second);
+                  get_signature_context(file_contexts,
+                                        may_test_class_signature.first,
+                                        may_test_class_signature.second.first,
+                                        may_test_class_signature.second.second);
               json may_test_signature_j = may_test_signature_context.get_j();
+              temp_j[file_context.file_path]
+                    [a_class.class_name + "::" + method.method_name]["may_test"]
+                    [may_test.second_parameter] = json::object();
               for (auto [key, value] : may_test_signature_j.items()) {
                 for (auto [key1, value1] : value.items()) {
-                  std::string true_key;
-                  for (auto [key2, value2] : value1.items()) {
-                    size_t begin = key2.find_first_of('_');
-                    size_t end = key2.substr(begin + 1).find_first_of('_');
-                    true_key = key2.substr(begin + 1, end);
-                    temp_j[file_context.file_path]
-                          [a_class.class_name + "::" + method.method_name]
-                          ["may_test"][true_key] = json::object();
-                  }
                   temp_j[file_context.file_path]
                         [a_class.class_name + "::" + method.method_name]
-                        ["may_test"][true_key] = value1;
+                        ["may_test"][may_test.second_parameter] = value1;
                 }
               }
-            }
-            for (auto test_macro : test_macros) {
-              std::string key =
-                  test_macro.substr(test_macro.find_first_of(',') + 1,
-                                    test_macro.find_first_of(')') -
-                                        test_macro.find_first_of(',') - 1);
-              key = key.substr(key.find_first_not_of(' '),
-                               key.find_last_of(' ') -
-                                   key.find_first_not_of(' '));
               temp_j[file_context.file_path]
                     [a_class.class_name + "::" + method.method_name]["may_test"]
-                    [key]["test_macro"] = json::object();
+                    [may_test.second_parameter]["test_macro"] = json::object();
               temp_j[file_context.file_path]
                     [a_class.class_name + "::" + method.method_name]["may_test"]
-                    [key]["test_macro"] = test_macro;
+                    [may_test.second_parameter]["test_macro"] =
+                        may_test.test_mecro;
             }
           }
           j.merge_patch(temp_j);
@@ -372,47 +333,34 @@ int main(int argc, const char **argv) {
                   function_signatre_j[file_context.file_path]
                                      ["class::" + function.function_name];
         if (RealTestFlag) {
-          std::vector<
-              std::pair<std::string, std::pair<std::string, std::string>>>
-              MayTest = all_context_paths->getSameTest(function.function_name);
-          std::vector<std::string> test_macros =
-              get_test_macro(file_context.file_path, function.function_name);
+          std::vector<TestMacro> may_tests =
+              get_may_tests(file_contexts, "class", function.function_name);
           temp_j[file_context.file_path]["class::" + function.function_name]
                 ["may_test"] = json::object();
-          for (auto may_test : MayTest) {
+          for (auto may_test : may_tests) {
+            std::pair<std::string, std::pair<std::string, std::string>>
+                may_test_class_signature =
+                    all_context_paths->getTest(may_test.second_parameter);
             SignatureContext may_test_signature_context = get_signature_context(
-                file_contexts, may_test.first, may_test.second.first,
-                may_test.second.second);
+                file_contexts, may_test_class_signature.first,
+                may_test_class_signature.second.first,
+                may_test_class_signature.second.second);
             json may_test_signature_j = may_test_signature_context.get_j();
+            temp_j[file_context.file_path]["class::" + function.function_name]
+                  ["may_test"][may_test.second_parameter] = json::object();
             for (auto [key, value] : may_test_signature_j.items()) {
               for (auto [key1, value1] : value.items()) {
-                std::string true_key;
-                for (auto [key2, value2] : value1.items()) {
-                  size_t begin = key2.find_first_of('_');
-                  size_t end = key2.substr(begin + 1).find_first_of('_');
-                  true_key = key2.substr(begin + 1, end);
-                  temp_j[file_context.file_path]
-                        ["class::" + function.function_name]["may_test"]
-                        [true_key] = json::object();
-                }
                 temp_j[file_context.file_path]
                       ["class::" + function.function_name]["may_test"]
-                      [true_key] = value1;
+                      [may_test.second_parameter] = value1;
               }
             }
-          }
-          for (auto test_macro : test_macros) {
-            std::string key =
-                test_macro.substr(test_macro.find_first_of(',') + 1,
-                                  test_macro.find_first_of(')') -
-                                      test_macro.find_first_of(',') - 1);
-            key =
-                key.substr(key.find_first_not_of(' '),
-                           key.find_last_of(' ') - key.find_first_not_of(' '));
             temp_j[file_context.file_path]["class::" + function.function_name]
-                  ["may_test"][key]["test_macro"] = json::object();
+                  ["may_test"][may_test.second_parameter]["test_macro"] =
+                      json::object();
             temp_j[file_context.file_path]["class::" + function.function_name]
-                  ["may_test"][key]["test_macro"] = test_macro;
+                  ["may_test"][may_test.second_parameter]["test_macro"] =
+                      may_test.test_mecro;
           }
         }
         j.merge_patch(temp_j);
@@ -473,38 +421,28 @@ int main(int argc, const char **argv) {
       cout_j["may_test"] = json::object();
       cout_j["may_test"] = j[RealFilePath][class_function_name]["may_test"];
       for (auto a_test : RealTestList) {
-        std::vector<std::pair<std::string, std::pair<std::string, std::string>>>
-            MustTest = all_context_paths->getDifferentTest(a_test);
-        std::vector<std::string> test_macros =
-            get_must_test_macro(RealFilePath, a_test);
-        cout_j["must_test"] = json::object();
-        for (auto must_test : MustTest) {
+        std::vector<TestMacro> must_test = get_must_test(file_contexts, a_test);
+        if (must_test.size() != 0) {
+          std::pair<std::string, std::pair<std::string, std::string>>
+              must_test_class_signature =
+                  all_context_paths->getTest(must_test[0].second_parameter);
+          cout_j["must_test"] = json::object();
           SignatureContext must_test_signature_context = get_signature_context(
-              file_contexts, must_test.first, must_test.second.first,
-              must_test.second.second);
+              file_contexts, must_test_class_signature.first,
+              must_test_class_signature.second.first,
+              must_test_class_signature.second.second);
           json must_test_signature_j = must_test_signature_context.get_j();
           for (auto [key, value] : must_test_signature_j.items()) {
             for (auto [key1, value1] : value.items()) {
-              std::string true_key;
-              for (auto [key2, value2] : value1.items()) {
-                size_t begin = key2.find_first_of('_');
-                size_t end = key2.substr(begin + 1).find_first_of('_');
-                true_key = key2.substr(begin + 1, end);
-                cout_j["must_test"][true_key] = json::object();
-              }
-              cout_j["must_test"][true_key] = value1;
+              cout_j["must_test"][must_test[0].second_parameter] =
+                  json::object();
+              cout_j["must_test"][must_test[0].second_parameter] = value1;
             }
           }
-        }
-        for (auto test_macro : test_macros) {
-          std::string key =
-              test_macro.substr(test_macro.find_first_of(',') + 1,
-                                test_macro.find_first_of(')') -
-                                    test_macro.find_first_of(',') - 1);
-          key = key.substr(key.find_first_not_of(' '),
-                           key.find_last_of(' ') - key.find_first_not_of(' '));
-          cout_j["must_test"][key]["test_macro"] = json::object();
-          cout_j["must_test"][key]["test_macro"] = test_macro;
+          cout_j["must_test"][must_test[0].second_parameter]["test_macro"] =
+              json::object();
+          cout_j["must_test"][must_test[0].second_parameter]["test_macro"] =
+              must_test[0].test_mecro;
         }
       }
     }
