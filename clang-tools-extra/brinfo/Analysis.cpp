@@ -206,7 +206,7 @@ void Analysis::condChainsToReqs() {
                         .getFilename(CanonicalDecl->getLocation())
                         .str();
   FileName = FileName.substr(FileName.find_last_of("/") + 1);
-  Json["file"] = FileName;
+  Json["include_file"] = FileName;
 
   string Input = "";
   int I = 0;
