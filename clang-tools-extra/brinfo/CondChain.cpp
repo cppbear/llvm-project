@@ -701,7 +701,8 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
          {"static", FD->isStatic()},
          {"user", ResolvedPath.find(RealProjectPath) != string::npos},
          {"actions", Actions},
-         {"return", FD->getReturnType().getAsString()}});
+         {"return", FD->getReturnType().getAsString()},
+         {"return_ref", FD->getReturnType()->isReferenceType()}});
     Actions.clear();
   }
 
