@@ -16,6 +16,15 @@ class FuncAnalysis : public MatchFinder::MatchCallback {
   Analysis &Analyzer;
   string FilePath;
 
+  bool isLambdaFunction(const FunctionDecl *FD) {
+    if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(FD)) {
+      if (const CXXRecordDecl *RD = MD->getParent()) {
+        return RD->isLambda();
+      }
+    }
+    return false;
+  }
+
 public:
   FuncAnalysis(Analysis &Analyzer, string FilePath)
       : Analyzer(Analyzer), FilePath(FilePath) {}
@@ -36,9 +45,9 @@ public:
       // Skip if the file is not the same as the one we are analyzing
       if (FilePath != ResolvedPath)
         return;
-      // Skip constructors and destructors
+      // Skip constructors, destructors and lambda functions
       if (Func->getDeclKind() == Decl::CXXConstructor ||
-          Func->getDeclKind() == Decl::CXXDestructor)
+          Func->getDeclKind() == Decl::CXXDestructor || isLambdaFunction(Func))
         return;
       // outs() << Func->Decl::getDeclKindName() << "\n";
 

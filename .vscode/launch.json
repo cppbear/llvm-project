@@ -26,10 +26,10 @@
                 "/home/chubei/utgen-focal/C-Plus-Plus",
                 "-p",
                 "/home/chubei/utgen-focal/C-Plus-Plus/build",
-                "/home/chubei/utgen-focal/C-Plus-Plus/data_structures/tree_234.cpp",
+                "/home/chubei/utgen-focal/C-Plus-Plus/math/integral_approximation.cpp",
                 // "-f",
                 // "BuildEdgeStarted"
-                "--cfg",
+                // "--cfg",
                 // "--",
                 // "-ferror-limit=0"
             ],

@@ -65,7 +65,8 @@ void Analysis::analyze() {
 
 void Analysis::dumpReqToJson(string ProjectPath, string FileName,
                              string ClassName, string FuncName) {
-  string FilePath = ProjectPath;
+  string FilePath = ProjectPath + "/llm_reqs";
+  llvm::sys::fs::create_directories(FilePath);
   if (Type == AnalysisType::FILE) {
     FilePath += "/" + FileName + "_req.json";
   } else {
