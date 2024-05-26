@@ -346,9 +346,11 @@ void CondChainInfo::findContra() {
       // handle call expression in the condition
       if (Cond.Condition->containCallExpr()) {
         for (const CallExpr *CE : Cond.Condition->getCallExprList()) {
-          IsContra = !setFuncCallInfo(Cond, CE);
-          if (IsContra)
-            return;
+          if (CE->getDirectCallee()) {
+            IsContra = !setFuncCallInfo(Cond, CE);
+            if (IsContra)
+              return;
+          }
         }
       }
       // handle last definition and call expression in the trace back
@@ -365,9 +367,11 @@ void CondChainInfo::findContra() {
                 const Expr *Init = VD->getInit()->IgnoreParenImpCasts();
                 if (Init->getStmtClass() == Stmt::CXXMemberCallExprClass ||
                     Init->getStmtClass() == Stmt::CallExprClass) {
-                  IsContra = !setFuncCallInfo(Cond, cast<CallExpr>(Init));
-                  if (IsContra)
-                    return;
+                  if (cast<CallExpr>(Init)->getDirectCallee()) {
+                    IsContra = !setFuncCallInfo(Cond, cast<CallExpr>(Init));
+                    if (IsContra)
+                      return;
+                  }
                 } else {
                   IsContra = !setDefInfo(Cond, Init);
                   if (IsContra)
@@ -384,9 +388,11 @@ void CondChainInfo::findContra() {
             Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
             if (RHS->getStmtClass() == Stmt::CXXMemberCallExprClass ||
                 RHS->getStmtClass() == Stmt::CallExprClass) {
-              IsContra = !setFuncCallInfo(Cond, cast<CallExpr>(RHS));
-              if (IsContra)
-                return;
+              if (cast<CallExpr>(RHS)->getDirectCallee()) {
+                IsContra = !setFuncCallInfo(Cond, cast<CallExpr>(RHS));
+                if (IsContra)
+                  return;
+              }
             } else {
               IsContra = !setDefInfo(Cond, RHS);
               if (IsContra)

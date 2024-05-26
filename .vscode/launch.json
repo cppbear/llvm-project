@@ -23,13 +23,13 @@
             // ],
             "args": [
                 "--project",
-                "/home/chubei/workspace/openharmony/third_party_ninja",
+                "/home/chubei/utgen-focal/C-Plus-Plus",
                 "-p",
-                "/home/chubei/workspace/openharmony/third_party_ninja/build",
-                "/home/chubei/workspace/openharmony/third_party_ninja/src/status.cc",
-                "-f",
-                "BuildEdgeStarted"
-                // "--cfg",
+                "/home/chubei/utgen-focal/C-Plus-Plus/build",
+                "/home/chubei/utgen-focal/C-Plus-Plus/data_structures/tree_234.cpp",
+                // "-f",
+                // "BuildEdgeStarted"
+                "--cfg",
                 // "--",
                 // "-ferror-limit=0"
             ],
