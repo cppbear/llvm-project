@@ -187,7 +187,7 @@ void Analysis::condChainsToReqs() {
       FocalFunc->getEndLoc().printToString(Context->getSourceManager());
   string BeginLine = split(BeginLoc, ':')[1];
   string EndLine = split(EndLoc, ':')[1];
-  Json["loc"] = {BeginLine, EndLine};
+  Json["loc"] = {stoi(BeginLine), stoi(EndLine)};
 
   unsigned ExitID = Cfg->getExit().getBlockID();
   CondChainList CondChains = BlkChain[ExitID];
