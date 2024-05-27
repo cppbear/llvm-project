@@ -71,10 +71,28 @@ void OneFileContext::get_test_macros() {
   }
   std::string line;
   bool is_inside_test_function = false;
+  bool is_inside_block_comment = false;
   int n = 0;
   std::string a_macro;
   std::string key;
   while (getline(file, line)) {
+    if (is_inside_block_comment) {
+      if (line.find("*/") != std::string::npos) {
+        is_inside_block_comment = false;
+        line = line.substr(line.find("*/") + 2);
+      } else {
+        continue;
+      }
+    }
+    size_t line_comment_pos = line.find("//");
+    if (line_comment_pos != std::string::npos) {
+      line = line.substr(0, line_comment_pos);
+    }
+    size_t block_comment_start = line.find("/*");
+    if (block_comment_start != std::string::npos) {
+      is_inside_block_comment = true;
+      line = line.substr(0, block_comment_start);
+    }
     if (line.find("TEST") != std::string::npos &&
         line.find("(") != std::string::npos &&
         line.find(",") != std::string::npos &&
@@ -87,10 +105,10 @@ void OneFileContext::get_test_macros() {
     }
     if (is_inside_test_function) {
       if (n == 0 && line.find('{') == std::string::npos) {
-        a_macro = a_macro + line;
+        a_macro = a_macro + line + "\n";
         continue;
       }
-      a_macro = a_macro + line;
+      a_macro = a_macro + line + "\n";
       for (int i = 0; i < line.size(); i++) {
         if (line[i] == '{') {
           n++;
