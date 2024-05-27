@@ -65,7 +65,8 @@ void Analysis::analyze() {
 
 void Analysis::dumpReqToJson(string ProjectPath, string FileName,
                              string ClassName, string FuncName) {
-  string FilePath = ProjectPath;
+  string FilePath = ProjectPath + "/llm_reqs";
+  llvm::sys::fs::create_directories(FilePath);
   if (Type == AnalysisType::FILE) {
     FilePath += "/" + FileName + "_req.json";
   } else {
@@ -187,7 +188,7 @@ void Analysis::condChainsToReqs() {
       FocalFunc->getEndLoc().printToString(Context->getSourceManager());
   string BeginLine = split(BeginLoc, ':')[1];
   string EndLine = split(EndLoc, ':')[1];
-  Json["loc"] = {BeginLine, EndLine};
+  Json["loc"] = {stoi(BeginLine), stoi(EndLine)};
 
   unsigned ExitID = Cfg->getExit().getBlockID();
   CondChainList CondChains = BlkChain[ExitID];
@@ -200,13 +201,17 @@ void Analysis::condChainsToReqs() {
   unordered_set<unsigned> MinCover = findMinCover();
 
   const FunctionDecl *CanonicalDecl = FocalFunc->getCanonicalDecl();
-  Json["function"] = CanonicalDecl->getNameAsString();
+  Json["operator"] = CanonicalDecl->isOverloadedOperator();
+  Json["name"] = CanonicalDecl->getNameAsString();
 
-  string FileName = Context->getSourceManager()
+  string FilePath = Context->getSourceManager()
                         .getFilename(CanonicalDecl->getLocation())
                         .str();
-  FileName = FileName.substr(FileName.find_last_of("/") + 1);
-  Json["file"] = FileName;
+  SmallVector<char, 128> RealPath;
+  sys::fs::real_path(FilePath, RealPath);
+  string RealFilePath(RealPath.begin(), RealPath.end());
+  // FileName = FilePath.substr(FileName.find_last_of("/") + 1);
+  Json["decl_file"] = RealFilePath;
 
   string Input = "";
   int I = 0;
@@ -301,10 +306,12 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     llvm::sort(SortedPath.begin(), SortedPath.end());
     if (binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
       // Loop detected
-      for (auto Succ : Blk->succs()) {
-        if (!binary_search(SortedPath.begin(), SortedPath.end(), Succ)) {
-          dfsTraverseCFG(Succ, Condition, false);
-          return;
+      for (CFGBlock::AdjacentBlock Succ : Blk->succs()) {
+        if (Succ.isReachable()) {
+          if (!binary_search(SortedPath.begin(), SortedPath.end(), Succ)) {
+            dfsTraverseCFG(Succ, Condition, false);
+            return;
+          }
         }
       }
       return;
@@ -331,14 +338,22 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       }
       auto *I = Blk->succ_begin();
       if (Cond) {
-        dfsTraverseCFG(*I, Cond, true);
-        Parent = ID;
-        ++I;
-        dfsTraverseCFG(*I, Cond, false);
-        Parent = ID;
+        if (I->isReachable()) {
+          dfsTraverseCFG(*I, Cond, true);
+          Parent = ID;
+        }
+        if (Blk->succ_size() == 2) {
+          ++I;
+          if (I->isReachable()) {
+            dfsTraverseCFG(*I, Cond, false);
+            Parent = ID;
+          }
+        }
       } else {
-        dfsTraverseCFG(*I, nullptr, false);
-        Parent = ID;
+        if (I->isReachable()) {
+          dfsTraverseCFG(*I, nullptr, false);
+          Parent = ID;
+        }
       }
       break;
     }
@@ -347,8 +362,13 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       Stmt *InnerCond = Blk->getTerminatorCondition();
       vector<Stmt *> Cases;
       for (auto I : Blk->succs()) {
+        if (!I.isReachable())
+          continue;
         Stmt *Label = I->getLabel();
-        assert(Label);
+        if (!Label) {
+          DefaultBlk = I;
+          continue;
+        }
         BaseCond *Cond = nullptr;
         if (Label->getStmtClass() == Stmt::CaseStmtClass) {
           Stmt *Case = cast<CaseStmt>(Label)->getLHS();
@@ -376,8 +396,10 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       break;
     }
     case Stmt::BreakStmtClass:
-      dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
-      Parent = ID;
+      if (Blk->succ_begin()->isReachable()) {
+        dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
+        Parent = ID;
+      }
       break;
     case Stmt::ForStmtClass: {
     }
@@ -393,26 +415,38 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       }
       auto *I = Blk->succ_begin();
       if (InnerCond) {
-        dfsTraverseCFG(*I, Cond, true);
-        Parent = ID;
-        ++I;
-        dfsTraverseCFG(*I, Cond, false);
-        Parent = ID;
+        if (I->isReachable()) {
+          dfsTraverseCFG(*I, Cond, true);
+          Parent = ID;
+        }
+        if (Blk->succ_size() == 2) {
+          ++I;
+          if (I->isReachable()) {
+            dfsTraverseCFG(*I, Cond, false);
+            Parent = ID;
+          }
+        }
       } else {
-        dfsTraverseCFG(*I, nullptr, false);
-        Parent = ID;
+        if (I->isReachable()) {
+          dfsTraverseCFG(*I, nullptr, false);
+          Parent = ID;
+        }
       }
       break;
     }
     case Stmt::ContinueStmtClass: {
-      dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
-      Parent = ID;
+      if (Blk->succ_begin()->isReachable()) {
+        dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
+        Parent = ID;
+      }
       break;
     }
     }
   } else if (Blk->succ_size() == 1) {
-    dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
-    Parent = ID;
+    if (Blk->succ_begin()->isReachable()) {
+      dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
+      Parent = ID;
+    }
   } else if (Blk->getBlockID() != Cfg->getExit().getBlockID()) {
     outs() << "Unhandle Block:\n";
     Blk->dump();

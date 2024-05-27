@@ -23,12 +23,12 @@
             // ],
             "args": [
                 "--project",
-                "/home/chubei/workspace/openharmony/third_party_ninja",
+                "/home/chubei/utgen-focal/C-Plus-Plus",
                 "-p",
-                "/home/chubei/workspace/openharmony/third_party_ninja/build",
-                "/home/chubei/workspace/openharmony/third_party_ninja/src/status.cc",
-                "-f",
-                "BuildEdgeStarted"
+                "/home/chubei/utgen-focal/C-Plus-Plus/build",
+                "/home/chubei/utgen-focal/C-Plus-Plus/math/integral_approximation.cpp",
+                // "-f",
+                // "BuildEdgeStarted"
                 // "--cfg",
                 // "--",
                 // "-ferror-limit=0"
