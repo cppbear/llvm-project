@@ -201,7 +201,8 @@ void Analysis::condChainsToReqs() {
   unordered_set<unsigned> MinCover = findMinCover();
 
   const FunctionDecl *CanonicalDecl = FocalFunc->getCanonicalDecl();
-  Json["function"] = CanonicalDecl->getNameAsString();
+  Json["operator"] = CanonicalDecl->isOverloadedOperator();
+  Json["name"] = CanonicalDecl->getNameAsString();
 
   string FilePath = Context->getSourceManager()
                         .getFilename(CanonicalDecl->getLocation())
