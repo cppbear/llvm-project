@@ -203,11 +203,14 @@ void Analysis::condChainsToReqs() {
   const FunctionDecl *CanonicalDecl = FocalFunc->getCanonicalDecl();
   Json["function"] = CanonicalDecl->getNameAsString();
 
-  string FileName = Context->getSourceManager()
+  string FilePath = Context->getSourceManager()
                         .getFilename(CanonicalDecl->getLocation())
                         .str();
-  FileName = FileName.substr(FileName.find_last_of("/") + 1);
-  Json["include_file"] = FileName;
+  SmallVector<char, 128> RealPath;
+  sys::fs::real_path(FilePath, RealPath);
+  string RealFilePath(RealPath.begin(), RealPath.end());
+  // FileName = FilePath.substr(FileName.find_last_of("/") + 1);
+  Json["decl_file"] = RealFilePath;
 
   string Input = "";
   int I = 0;
