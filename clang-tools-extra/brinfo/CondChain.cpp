@@ -691,7 +691,12 @@ json CondChainInfo::toTestReqs(ASTContext *Context) {
       const CXXRecordDecl *CRD = cast<CXXRecordDecl>(FD->getParent());
       ClassFile =
           Context->getSourceManager().getFilename(CRD->getLocation()).str();
-      ClassFile = ClassFile.substr(ClassFile.find_last_of("/") + 1);
+      SmallVector<char, 128> RealPath;
+      sys::fs::real_path(ClassFile, RealPath);
+      ClassFile = string(RealPath.begin(), RealPath.end());
+      if (ClassFile.find(RealProjectPath) == string::npos) {
+        ClassFile = ClassFile.substr(ClassFile.find_last_of("/") + 1);
+      }
       ClassName = CRD->getNameAsString();
     }
     string FileName =
