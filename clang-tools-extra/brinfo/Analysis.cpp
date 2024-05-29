@@ -1,4 +1,5 @@
 #include "Analysis.h"
+#include "clang/AST/DeclBase.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
@@ -179,6 +180,23 @@ vector<string> split(const string &Str, char Delim) {
   return Tokens;
 }
 
+string getNamespace(const Decl *D) {
+  const DeclContext *DC = D->getDeclContext();
+  string Namespace;
+  while (DC) {
+    if (const NamespaceDecl *ND = dyn_cast<NamespaceDecl>(DC)) {
+      if (!Namespace.empty())
+        Namespace = ND->getNameAsString() + "::" + Namespace;
+      else
+        Namespace = ND->getNameAsString();
+    }
+    DC = DC->getParent();
+  }
+  if (Namespace.empty())
+    return "";
+  return Namespace;
+}
+
 void Analysis::condChainsToReqs() {
   json Json;
 
@@ -203,6 +221,7 @@ void Analysis::condChainsToReqs() {
   const FunctionDecl *CanonicalDecl = FocalFunc->getCanonicalDecl();
   Json["operator"] = CanonicalDecl->isOverloadedOperator();
   Json["name"] = CanonicalDecl->getNameAsString();
+  Json["namespace"] = getNamespace(CanonicalDecl);
 
   string FilePath = Context->getSourceManager()
                         .getFilename(CanonicalDecl->getLocation())
