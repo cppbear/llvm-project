@@ -208,8 +208,12 @@ public:
           if (const NamespaceDecl *namespaceDecl =
                   dyn_cast<NamespaceDecl>(decl_context)) {
             b = 1;
-            global_var.its_namespace = namespaceDecl->getNameAsString();
-            break;
+            if (global_var.its_namespace == "") {
+              global_var.its_namespace = namespaceDecl->getNameAsString();
+            } else {
+              global_var.its_namespace = global_var.its_namespace + "::" +
+                                         namespaceDecl->getNameAsString();
+            }
           }
           decl_context = decl_context->getParent();
         }
@@ -519,8 +523,12 @@ public:
               if (const NamespaceDecl *namespaceDecl =
                       dyn_cast<NamespaceDecl>(context)) {
                 b = 1;
-                function.its_namespace = namespaceDecl->getNameAsString();
-                break;
+                if (function.its_namespace == "") {
+                  function.its_namespace = namespaceDecl->getNameAsString();
+                } else {
+                  function.its_namespace = function.its_namespace + "::" +
+                                           namespaceDecl->getNameAsString();
+                }
               }
               context = context->getParent();
             }
@@ -565,8 +573,12 @@ public:
                 if (const NamespaceDecl *namespaceDecl =
                         dyn_cast<NamespaceDecl>(context)) {
                   b = 1;
-                  a_class.its_namespace = namespaceDecl->getNameAsString();
-                  break;
+                  if (a_class.its_namespace == "") {
+                    a_class.its_namespace = namespaceDecl->getNameAsString();
+                  } else {
+                    a_class.its_namespace = a_class.its_namespace + "::" +
+                                            namespaceDecl->getNameAsString();
+                  }
                 }
                 context = context->getParent();
               }
