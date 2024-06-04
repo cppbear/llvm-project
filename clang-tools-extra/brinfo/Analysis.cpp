@@ -45,6 +45,7 @@ bool Analysis::init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
   BlkChain.resize(Cfg->getNumBlockIDs());
   ColorOfBlk.resize(Cfg->getNumBlockIDs(), 0);
   Parent = -1;
+  LoopInner.clear();
   // BlkChain[Cfg->getEntry().getBlockID()].push_back(
   //     CondChainInfo(&Cfg->getEntry()));
   BlkChain[Cfg->getEntry().getBlockID()].push_back(
@@ -325,13 +326,52 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     llvm::sort(SortedPath.begin(), SortedPath.end());
     if (binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
       // Loop detected
+      long LoopParent = Parent;
+      // outs() << "Loop detected at Block " << Blk->getBlockID() << " in "
+      //        << Signature << "\n";
+      // unsigned I = 0;
+      // for (const CFGBlock *Blk : Path) {
+      //   if (I++ > 0)
+      //     errs() << " \033[36m\033[1m->\033[0m ";
+      //   errs() << Blk->getBlockID();
+      // }
+      // errs() << "\n";
+      bool Traverse = false;
       for (CFGBlock::AdjacentBlock Succ : Blk->succs()) {
         if (Succ.isReachable()) {
           if (!binary_search(SortedPath.begin(), SortedPath.end(), Succ)) {
+            if (LoopInner[Blk->getBlockID()].find(Succ->getBlockID()) !=
+                LoopInner[Blk->getBlockID()].end())
+              continue;
             dfsTraverseCFG(Succ, Condition, false);
-            return;
+            Parent = LoopParent;
+            if (!DeathLoop) {
+              Traverse = true;
+            } else {
+              LoopInner[Blk->getBlockID()].insert(Succ->getBlockID());
+            }
+            DeathLoop = false;
           }
         }
+      }
+      if (!Traverse) {
+        unsigned PathSize = Path.size();
+        for (unsigned I = PathSize - 1; I > 0; --I) {
+          bool IsSucc = false;
+          const CFGBlock *Succ = Path[I];
+          const CFGBlock *Pred = Path[I - 1];
+          for (CFGBlock::AdjacentBlock Adj : Pred->succs()) {
+            if (Adj.isReachable() &&
+                (Adj->getBlockID() == Succ->getBlockID())) {
+              IsSucc = true;
+              break;
+            }
+          }
+          BlkChain[Succ->getBlockID()].pop_back();
+          if (!IsSucc)
+            break;
+        }
+        DeathLoop = true;
       }
       return;
     }
@@ -420,12 +460,16 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
         Parent = ID;
       }
       break;
-    case Stmt::ForStmtClass: {
+    case Stmt::CXXForRangeStmtClass: {
+      Blk->dump();
+      Stmt *InnerCond = Blk->getTerminatorCondition();
+      if (InnerCond) {
+        InnerCond->dumpColor();
+      }
+      break;
     }
-      LLVM_FALLTHROUGH;
-    case Stmt::WhileStmtClass: {
-    }
-      LLVM_FALLTHROUGH;
+    case Stmt::ForStmtClass:
+    case Stmt::WhileStmtClass:
     case Stmt::DoStmtClass: {
       BaseCond *Cond = nullptr;
       Stmt *InnerCond = Blk->getTerminatorCondition();
@@ -452,6 +496,11 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
         }
       }
       break;
+    }
+    case Stmt::GotoStmtClass: {
+      // outs() << Signature << "\n";
+      // outs() << Blk->getBlockID() << "\n";
+      // break;
     }
     case Stmt::ContinueStmtClass: {
       if (Blk->succ_begin()->isReachable()) {

@@ -21,6 +21,9 @@ private:
   vector<CondChainList> BlkChain;
   vector<unsigned char> ColorOfBlk;
   long Parent;
+  bool DeathLoop = false;
+
+  map<unsigned, set<unsigned>> LoopInner;
 
   void setSignature();
   void extractCondChains();
