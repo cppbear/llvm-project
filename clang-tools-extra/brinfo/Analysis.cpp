@@ -497,11 +497,7 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       }
       break;
     }
-    case Stmt::GotoStmtClass: {
-      // outs() << Signature << "\n";
-      // outs() << Blk->getBlockID() << "\n";
-      // break;
-    }
+    case Stmt::GotoStmtClass:
     case Stmt::ContinueStmtClass: {
       if (Blk->succ_begin()->isReachable()) {
         dfsTraverseCFG(*Blk->succ_begin(), nullptr, false);
