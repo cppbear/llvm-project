@@ -5,6 +5,8 @@ namespace BrInfo {
 
 enum AnalysisType { FILE, FUNC };
 
+const unsigned MaxChains = 10000;
+
 class Analysis {
 
   using CondChainList = vector<CondChainInfo>;

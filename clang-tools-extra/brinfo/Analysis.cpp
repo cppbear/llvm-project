@@ -57,7 +57,7 @@ bool Analysis::init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
 
 void Analysis::analyze() {
   extractCondChains();
-  if (CondChains.size() < 1000) {
+  if (CondChains.size() < MaxChains) {
     // unsigned ExitID = Cfg->getExit().getBlockID();
     // CondChainList &ChainList = BlkChain[ExitID];
     CondChainList &ChainList = CondChains;
@@ -111,7 +111,7 @@ void Analysis::setSignature() {
 
 void Analysis::extractCondChains() {
   dfsTraverseCFG(&Cfg->getEntry(), nullptr, false);
-  if (CondChains.size() >= 1000)
+  if (CondChains.size() >= MaxChains)
     return;
   toBlack();
   for (const CFGBlock *Try : Cfg->try_blocks()) {
@@ -314,7 +314,7 @@ void Analysis::toBlack() {
 }
 
 void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
-  if (CondChains.size() >= 1000)
+  if (CondChains.size() >= MaxChains)
     return;
   unsigned ID = Blk->getBlockID();
   if (ColorOfBlk[ID] == 0)
@@ -480,14 +480,7 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
         Parent = ID;
       }
       break;
-    case Stmt::CXXForRangeStmtClass: {
-      Blk->dump();
-      Stmt *InnerCond = Blk->getTerminatorCondition();
-      if (InnerCond) {
-        InnerCond->dumpColor();
-      }
-      break;
-    }
+    case Stmt::CXXForRangeStmtClass:
     case Stmt::ForStmtClass:
     case Stmt::WhileStmtClass:
     case Stmt::DoStmtClass: {
