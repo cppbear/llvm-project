@@ -5,7 +5,7 @@ namespace BrInfo {
 
 enum AnalysisType { FILE, FUNC };
 
-const unsigned MaxChains = 10000;
+const unsigned MaxChains = 1000;
 
 class Analysis {
 
