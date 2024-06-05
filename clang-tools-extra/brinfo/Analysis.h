@@ -18,12 +18,14 @@ private:
   json Results;
   unordered_set<string> VisitedFuncs;
 
-  vector<CondChainList> BlkChain;
+  // vector<CondChainList> BlkChain;
+  CondChainList CondChainForBlk;
+  CondChainList CondChains;
   vector<unsigned char> ColorOfBlk;
   long Parent;
   bool DeathLoop = false;
 
-  map<unsigned, set<unsigned>> LoopInner;
+  unordered_map<unsigned, unordered_set<unsigned>> LoopInner;
 
   void setSignature();
   void extractCondChains();

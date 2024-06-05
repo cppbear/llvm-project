@@ -42,26 +42,31 @@ bool Analysis::init(CFG *CFG, ASTContext *Context, const FunctionDecl *FD) {
   this->Context = Context;
   FocalFunc = FD;
   setSignature();
-  BlkChain.resize(Cfg->getNumBlockIDs());
+  // BlkChain.resize(Cfg->getNumBlockIDs());
+  CondChainForBlk.resize(Cfg->getNumBlockIDs());
   ColorOfBlk.resize(Cfg->getNumBlockIDs(), 0);
   Parent = -1;
-  LoopInner.clear();
   // BlkChain[Cfg->getEntry().getBlockID()].push_back(
   //     CondChainInfo(&Cfg->getEntry()));
-  BlkChain[Cfg->getEntry().getBlockID()].push_back(
-      {{{nullptr, false, {}, {}}}, {&Cfg->getEntry()}, false, {}, {}});
+  // BlkChain[Cfg->getEntry().getBlockID()].push_back(
+  //     {{{nullptr, false, {}, {}}}, {&Cfg->getEntry()}, false, {}, {}});
+  CondChainForBlk[Cfg->getEntry().getBlockID()] = {
+      {{nullptr, false, {}, {}}}, {&Cfg->getEntry()}, false, {}, {}};
   return true;
 }
 
 void Analysis::analyze() {
   extractCondChains();
-  unsigned ExitID = Cfg->getExit().getBlockID();
-  CondChainList &ChainList = BlkChain[ExitID];
-  for (CondChainInfo &ChainInfo : ChainList) {
-    ChainInfo.analyze(Context);
+  if (CondChains.size() < 1000) {
+    // unsigned ExitID = Cfg->getExit().getBlockID();
+    // CondChainList &ChainList = BlkChain[ExitID];
+    CondChainList &ChainList = CondChains;
+    for (CondChainInfo &ChainInfo : ChainList) {
+      ChainInfo.analyze(Context);
+    }
+    // dumpCondChains();
+    condChainsToReqs();
   }
-  // dumpCondChains();
-  condChainsToReqs();
   clear();
 }
 
@@ -106,12 +111,16 @@ void Analysis::setSignature() {
 
 void Analysis::extractCondChains() {
   dfsTraverseCFG(&Cfg->getEntry(), nullptr, false);
+  if (CondChains.size() >= 1000)
+    return;
   toBlack();
   for (const CFGBlock *Try : Cfg->try_blocks()) {
     Parent = Try->getBlockID();
     CFGBlock *Blk = *Try->succ_begin();
-    BlkChain[Parent].push_back(
-        {{{nullptr, false, {}, {}}}, {Try}, false, {}, {}});
+    // BlkChain[Parent].push_back(
+    //     {{{nullptr, false, {}, {}}}, {Try}, false, {}, {}});
+    CondChainForBlk[Parent] = {
+        {{nullptr, false, {}, {}}}, {Try}, false, {}, {}};
     dfsTraverseCFG(Blk, nullptr, false);
     toBlack();
   }
@@ -142,8 +151,9 @@ long Analysis::findBestCover(set<pair<const Stmt *, bool>> &Uncovered,
 unordered_set<unsigned> Analysis::findMinCover() {
   set<pair<const Stmt *, bool>> AllElements;
   unordered_set<unsigned> Cover;
-  unsigned ExitID = Cfg->getExit().getBlockID();
-  CondChainList CondChains = BlkChain[ExitID];
+  // unsigned ExitID = Cfg->getExit().getBlockID();
+  // CondChainList CondChains = BlkChain[ExitID];
+  CondChainList CondChains = this->CondChains;
   CondChains.erase(remove_if(CondChains.begin(), CondChains.end(),
                              [](const CondChainInfo &ChainInfo) {
                                return ChainInfo.IsContra;
@@ -209,8 +219,9 @@ void Analysis::condChainsToReqs() {
   string EndLine = split(EndLoc, ':')[1];
   Json["loc"] = {stoi(BeginLine), stoi(EndLine)};
 
-  unsigned ExitID = Cfg->getExit().getBlockID();
-  CondChainList CondChains = BlkChain[ExitID];
+  // unsigned ExitID = Cfg->getExit().getBlockID();
+  // CondChainList CondChains = BlkChain[ExitID];
+  CondChainList CondChains = this->CondChains;
   CondChains.erase(remove_if(CondChains.begin(), CondChains.end(),
                              [](const CondChainInfo &ChainInfo) {
                                return ChainInfo.IsContra;
@@ -286,9 +297,12 @@ void Analysis::clear() {
   Context = nullptr;
   FocalFunc = nullptr;
   Signature.clear();
-  BlkChain.clear();
+  // BlkChain.clear();
+  CondChainForBlk.clear();
+  CondChains.clear();
   ColorOfBlk.clear();
   Parent = -1;
+  LoopInner.clear();
 }
 
 void Analysis::toBlack() {
@@ -300,6 +314,8 @@ void Analysis::toBlack() {
 }
 
 void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
+  if (CondChains.size() >= 1000)
+    return;
   unsigned ID = Blk->getBlockID();
   if (ColorOfBlk[ID] == 0)
     ColorOfBlk[ID] = 1;
@@ -311,8 +327,10 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     return;
   }
 
-  if (Parent != -1 && !BlkChain[Parent].empty()) {
-    CondChainInfo &ChainInfo = BlkChain[Parent].back();
+  // if (Parent != -1 && !BlkChain[Parent].empty()) {
+  if (Parent != -1 && !CondChainForBlk[Parent].Path.empty()) {
+    // CondChainInfo &ChainInfo = BlkChain[Parent].back();
+    CondChainInfo &ChainInfo = CondChainForBlk[Parent];
     CondChain Chain = ChainInfo.Chain;
     BlkPath Path = ChainInfo.Path;
     // unsigned I = 0;
@@ -327,7 +345,7 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     if (binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
       // Loop detected
       long LoopParent = Parent;
-      // outs() << "Loop detected at Block " << Blk->getBlockID() << " in "
+      // errs() << "Loop detected at Block " << Blk->getBlockID() << " in "
       //        << Signature << "\n";
       // unsigned I = 0;
       // for (const CFGBlock *Blk : Path) {
@@ -367,7 +385,8 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
               break;
             }
           }
-          BlkChain[Succ->getBlockID()].pop_back();
+          // BlkChain[Succ->getBlockID()].pop_back();
+          CondChainForBlk[Succ->getBlockID()] = {}; // clear
           if (!IsSucc)
             break;
         }
@@ -377,7 +396,8 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
     }
     Chain.push_back({Condition, Flag, {}, {}});
     Path.push_back(Blk);
-    BlkChain[ID].push_back({Chain, Path, false, {}, {}});
+    // BlkChain[ID].push_back({Chain, Path, false, {}, {}});
+    CondChainForBlk[ID] = {Chain, Path, false, {}, {}};
   }
 
   Parent = ID;
@@ -512,14 +532,19 @@ void Analysis::dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag) {
       Parent = ID;
     }
   } else if (Blk->getBlockID() != Cfg->getExit().getBlockID()) {
-    outs() << "Unhandle Block:\n";
+    errs() << "Unhandle Block:\n";
     Blk->dump();
+  } else {
+    // errs() << "Exit Block\n";
+    // BlkPath BlockPath = BlkChain[ID].back().Path;
+    CondChains.push_back(CondChainForBlk[ID]);
   }
 }
 
 void Analysis::dumpCondChains() {
-  unsigned ExitID = Cfg->getExit().getBlockID();
-  CondChainList &CondChains = BlkChain[ExitID];
+  // unsigned ExitID = Cfg->getExit().getBlockID();
+  // CondChainList &CondChains = BlkChain[ExitID];
+  CondChainList &CondChains = this->CondChains;
   unsigned Size = CondChains.size();
   for (unsigned I = 0; I < Size; ++I) {
     errs() << "CondChain " << I << ":\n";
@@ -528,15 +553,20 @@ void Analysis::dumpCondChains() {
 }
 
 void Analysis::dumpBlkChain(unsigned ID) {
-  unsigned I = 0;
-  for (CondChainInfo &ChainInfo : BlkChain[ID]) {
-    errs() << "  Chain " << I++ << ":\n";
-    ChainInfo.dump(Context, 4);
-  }
+  // unsigned I = 0;
+  // for (CondChainInfo &ChainInfo : BlkChain[ID]) {
+  //   errs() << "  Chain " << I++ << ":\n";
+  //   ChainInfo.dump(Context, 4);
+  // }
+  CondChainForBlk[ID].dump(Context, 4);
 }
 
 void Analysis::dumpBlkChain() {
-  for (unsigned I = 0; I < BlkChain.size(); ++I) {
+  // for (unsigned I = 0; I < BlkChain.size(); ++I) {
+  //   errs() << "Block: " << I << "\n";
+  //   dumpBlkChain(I);
+  // }
+  for (unsigned I = 0; I < CondChainForBlk.size(); ++I) {
     errs() << "Block: " << I << "\n";
     dumpBlkChain(I);
   }

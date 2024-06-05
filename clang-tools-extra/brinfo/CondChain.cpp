@@ -195,7 +195,7 @@ StringList CondStatus::getLastDefStrVec(ASTContext *Context) {
   StringList StrVec;
   string Str;
   raw_string_ostream OS(Str);
-  if (!LastDefStmts.empty()) {
+  if (!LastDefStmts.empty() && !isa<LoopCond>(Condition)) {
     for (const Stmt *S : LastDefStmts) {
       S->printPretty(OS, nullptr, Context->getPrintingPolicy());
       OS.flush();
