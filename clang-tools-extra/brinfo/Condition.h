@@ -64,10 +64,11 @@ public:
 };
 
 class CaseCond : public BaseCond {
-  Stmt *Case = nullptr;
+  const Stmt *Case = nullptr;
 
 public:
-  CaseCond(Stmt *Cond, Stmt *Case) : BaseCond(CASE, Cond), Case(Case) {
+  CaseCond(const Stmt *Cond, const Stmt *Case)
+      : BaseCond(CASE, Cond), Case(Case) {
     // setCondStr(Context);
   }
   virtual ~CaseCond() { Case = nullptr; }
@@ -78,10 +79,10 @@ public:
 };
 
 class DefaultCond : public BaseCond {
-  vector<Stmt *> Cases;
+  vector<const Stmt *> Cases;
 
 public:
-  DefaultCond(Stmt *Cond, vector<Stmt *> Cases)
+  DefaultCond(const Stmt *Cond, vector<const Stmt *> Cases)
       : BaseCond(DEFAULT, Cond), Cases(Cases) {
     // setCondStr(Context);
   }
@@ -96,7 +97,7 @@ public:
 
 class LoopCond : public BaseCond {
 public:
-  LoopCond(Stmt *Cond) : BaseCond(LOOP, Cond) {
+  LoopCond(const Stmt *Cond) : BaseCond(LOOP, Cond) {
     // setCondStr(Context);
   }
   virtual ~LoopCond() {}
