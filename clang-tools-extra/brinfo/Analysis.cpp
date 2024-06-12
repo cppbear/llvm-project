@@ -343,6 +343,9 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
     bool Flag = BlkCond.Flag;
     unsigned ID = Blk->getBlockID();
 
+    errs() << "Block: " << ID << " Parent: " << Parent << "\n";
+    dumpBlkChain();
+
     if (ColorOfBlk[ID] == 0)
       ColorOfBlk[ID] = 1;
 
@@ -360,15 +363,15 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
       llvm::sort(SortedPath.begin(), SortedPath.end());
       // Loop detected
       if (binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
-        // errs() << "Loop detected at Block " << Blk->getBlockID() << " in "
-        //        << Signature << "\n";
-        // unsigned I = 0;
-        // for (const CFGBlock *Blk : Path) {
-        //   if (I++ > 0)
-        //     errs() << " \033[36m\033[1m->\033[0m ";
-        //   errs() << Blk->getBlockID();
-        // }
-        // errs() << "\n";
+        errs() << "Loop detected at Block " << Blk->getBlockID() << " in "
+               << Signature << "\n";
+        unsigned I = 0;
+        for (const CFGBlock *Blk : Path) {
+          if (I++ > 0)
+            errs() << " \033[36m\033[1m->\033[0m ";
+          errs() << Blk->getBlockID();
+        }
+        errs() << "\n";
         bool Traverse = false;
         for (CFGBlock::AdjacentBlock Adj : Blk->succs()) {
           if (Adj.isReachable()) {
@@ -381,6 +384,7 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
             }
           }
         }
+        // FIXME: do not clear loop like while (true)
         if (!Traverse) {
           unsigned PathSize = Path.size();
           for (unsigned I = PathSize - 1; I > 0; --I) {

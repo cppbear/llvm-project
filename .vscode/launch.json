@@ -27,8 +27,10 @@
                 "-p",
                 "/home/chubei/utgen-focal/json/build",
                 "/home/chubei/utgen-focal/json/include/nlohmann/detail/input/lexer.hpp",
-                // "-f",
-                // "scan_number"
+                // "/home/chubei/utgen-focal/json/single_include/nlohmann/json.hpp",
+                "-f",
+                // "scan_number",
+                "scan_comment",
                 // "--cfg",
                 // "--",
                 // "-ferror-limit=0"
