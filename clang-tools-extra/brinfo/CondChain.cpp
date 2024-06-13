@@ -210,26 +210,26 @@ StringList CondStatus::getLastDefStrVec(ASTContext *Context) {
 void CondStatus::dump(ASTContext *Context) {
   if (Condition) {
     Condition->dump(Context);
-    errs() << " is " << (Flag ? "true" : "false");
+    outs() << " is " << (Flag ? "true" : "false");
     if (!LastDefStmts.empty() || !ParmVars.empty()) {
       string Str;
       raw_string_ostream OS(Str);
-      errs() << ", where: ";
+      outs() << ", where: ";
       unsigned I = 0;
       for (const Stmt *S : LastDefStmts) {
         S->printPretty(OS, nullptr, Context->getPrintingPolicy());
         OS.flush();
         rtrim(Str);
         if (I++ > 0)
-          errs() << ", ";
-        errs() << Str;
+          outs() << ", ";
+        outs() << Str;
         Str.clear();
       }
       I = 0;
       for (const ParmVarDecl *PVD : ParmVars) {
         if (I++ > 0)
-          errs() << ", ";
-        errs() << PVD->getNameAsString() << " is ParmVar";
+          outs() << ", ";
+        outs() << PVD->getNameAsString() << " is ParmVar";
       }
     }
   }
@@ -626,24 +626,24 @@ void CondChainInfo::dumpFuncCallInfo() {
 
 void CondChainInfo::dump(ASTContext *Context, unsigned Indent) {
   string IndentStr(Indent, ' ');
-  errs() << IndentStr;
+  outs() << IndentStr;
   unsigned CondNum = Chain.size();
   unsigned I = 0;
   for (unsigned J = 0; J < CondNum; ++J) {
     if (Chain[J].Condition) {
       if (I++ > 0)
-        errs() << " \033[36m\033[1m->\033[0m ";
+        outs() << " \033[36m\033[1m->\033[0m ";
       Chain[J].dump(Context);
     }
   }
-  errs() << "\n" + IndentStr;
+  outs() << "\n" + IndentStr;
   I = 0;
   for (const CFGBlock *Blk : Path) {
     if (I++ > 0)
-      errs() << " \033[36m\033[1m->\033[0m ";
-    errs() << Blk->getBlockID();
+      outs() << " \033[36m\033[1m->\033[0m ";
+    outs() << Blk->getBlockID();
   }
-  errs() << "\n";
+  outs() << "\n";
 }
 
 json CondChainInfo::toTestReqs(ASTContext *Context) {
@@ -739,14 +739,14 @@ string CondChainInfo::getReturnStr(ASTContext *Context, string ReturnType) {
   return Result;
 }
 
-set<pair<const Stmt *, bool>> CondChainInfo::getCondSet() const {
-  set<pair<const Stmt *, bool>> Set;
+set<tuple<const Stmt *, string, bool>> CondChainInfo::getCondSet() const {
+  set<tuple<const Stmt *, string, bool>> Set;
   for (CondStatus Cond : Chain) {
     if (Cond.Condition) {
       bool Flag = Cond.Flag;
       // if (Cond.Condition->isNot())
       //   Flag = !Flag;
-      Set.insert({Cond.Condition->getCond(), Flag});
+      Set.insert({Cond.Condition->getCond(), Cond.Condition->getCondStr(), Flag});
     }
   }
   return Set;

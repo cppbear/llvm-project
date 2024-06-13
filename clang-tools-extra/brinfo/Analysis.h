@@ -1,3 +1,5 @@
+#pragma once
+
 #include "CondChain.h"
 #include <unordered_set>
 
@@ -12,6 +14,7 @@ struct BlkCond {
   const CFGBlock *Block = nullptr;
   BaseCond *Condition = nullptr;
   bool Flag = false;
+  bool InLoop = false;
 };
 
 class Analysis {
@@ -27,18 +30,15 @@ private:
   json Results;
   unordered_set<string> VisitedFuncs;
 
-  // vector<CondChainList> BlkChain;
   CondChainList CondChainForBlk;
   CondChainList CondChains;
   vector<unsigned char> ColorOfBlk;
-  // long Parent;
-  // bool DeathLoop = false;
 
   unordered_map<unsigned, unordered_set<unsigned>> LoopInner;
 
   void setSignature();
   void extractCondChains();
-  long findBestCover(set<pair<const Stmt *, bool>> &Uncovered,
+  long findBestCover(set<tuple<const Stmt *, string, bool>> &Uncovered,
                      const CondChainList &CondChains, vector<bool> &Used);
   unordered_set<unsigned> findMinCover();
   void condChainsToReqs();
@@ -46,7 +46,6 @@ private:
 
   void toBlack();
   void dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk);
-  // void dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag);
   void dumpCondChains();
   void dumpBlkChain(unsigned ID);
   void dumpBlkChain();

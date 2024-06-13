@@ -1,3 +1,5 @@
+#pragma once
+
 #include "clang/Analysis/CFG.h"
 
 using namespace clang;
@@ -35,7 +37,6 @@ public:
   BaseCond(CondKind K, const Stmt *Cond) : Kind(K), Cond(Cond) {
     findDeclRefExpr(Cond);
     findCallExpr(Cond);
-    // setCondStr(Context);
   }
   virtual ~BaseCond() { Cond = nullptr; }
   CondKind getKind() const { return Kind; }
@@ -48,17 +49,15 @@ public:
   bool containCallExpr() { return ContainCallExpr; }
   vector<const DeclRefExpr *> &getDeclRefExprList() { return DeclRefExprList; }
   vector<const CallExpr *> &getCallExprList() { return CallExprList; }
-  void setCondStr(const ASTContext *Context);
+  virtual void setCondStr(const ASTContext *Context);
 };
 
 class IfCond : public BaseCond {
 public:
   IfCond(const Stmt *Cond) : BaseCond(IF, Cond) {
-    // setCondStr(Context);
   }
   virtual ~IfCond() {}
   void dump(const ASTContext *Context) override;
-  //   void setCondStr(const ASTContext &Context);
   string toString(const ASTContext *Context) override;
   static bool classof(const BaseCond *Cond) { return Cond->getKind() == IF; }
 };
@@ -69,11 +68,10 @@ class CaseCond : public BaseCond {
 public:
   CaseCond(const Stmt *Cond, const Stmt *Case)
       : BaseCond(CASE, Cond), Case(Case) {
-    // setCondStr(Context);
   }
   virtual ~CaseCond() { Case = nullptr; }
   void dump(const ASTContext *Context) override;
-  void setCondStr(const ASTContext *Context){};
+  void setCondStr(const ASTContext *Context) override;
   string toString(const ASTContext *Context) override;
   static bool classof(const BaseCond *Cond) { return Cond->getKind() == CASE; }
 };
@@ -84,11 +82,10 @@ class DefaultCond : public BaseCond {
 public:
   DefaultCond(const Stmt *Cond, vector<const Stmt *> Cases)
       : BaseCond(DEFAULT, Cond), Cases(Cases) {
-    // setCondStr(Context);
   }
   virtual ~DefaultCond() {}
   void dump(const ASTContext *Context) override;
-  void setCondStr(const ASTContext *Context){};
+  void setCondStr(const ASTContext *Context) override;
   string toString(const ASTContext *Context) override;
   static bool classof(const BaseCond *Cond) {
     return Cond->getKind() == DEFAULT;
@@ -98,11 +95,9 @@ public:
 class LoopCond : public BaseCond {
 public:
   LoopCond(const Stmt *Cond) : BaseCond(LOOP, Cond) {
-    // setCondStr(Context);
   }
   virtual ~LoopCond() {}
   void dump(const ASTContext *Context) override;
-  void setCondStr(const ASTContext *Context){};
   string toString(const ASTContext *Context) override;
   static bool classof(const BaseCond *Cond) { return Cond->getKind() == LOOP; }
 };
