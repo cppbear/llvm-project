@@ -211,8 +211,8 @@ public:
             if (global_var.its_namespace == "") {
               global_var.its_namespace = namespaceDecl->getNameAsString();
             } else {
-              global_var.its_namespace = global_var.its_namespace + "::" +
-                                         namespaceDecl->getNameAsString();
+              global_var.its_namespace = namespaceDecl->getNameAsString() +
+                                         "::" + global_var.its_namespace;
             }
           }
           decl_context = decl_context->getParent();
@@ -526,8 +526,8 @@ public:
                 if (function.its_namespace == "") {
                   function.its_namespace = namespaceDecl->getNameAsString();
                 } else {
-                  function.its_namespace = function.its_namespace + "::" +
-                                           namespaceDecl->getNameAsString();
+                  function.its_namespace = namespaceDecl->getNameAsString() +
+                                           "::" + function.its_namespace;
                 }
               }
               context = context->getParent();
@@ -576,8 +576,8 @@ public:
                   if (a_class.its_namespace == "") {
                     a_class.its_namespace = namespaceDecl->getNameAsString();
                   } else {
-                    a_class.its_namespace = a_class.its_namespace + "::" +
-                                            namespaceDecl->getNameAsString();
+                    a_class.its_namespace = namespaceDecl->getNameAsString() +
+                                            "::" + a_class.its_namespace;
                   }
                 }
                 context = context->getParent();
