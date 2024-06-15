@@ -75,7 +75,12 @@ void get_all_files(std::string path) {
       std::string directorty_entry = entry.path().string();
       // std::cout << directorty_entry << std::endl;
       if (directorty_entry.find("/build") == std::string::npos &&
-          directorty_entry.find("/llm_tests") == std::string::npos) {
+          directorty_entry.find("/llm_tests") == std::string::npos
+          // &&
+          // directorty_entry.find("test") == std::string::npos &&
+          // directorty_entry.find("doc") == std::string::npos &&
+          // directorty_entry.find("example") == std::string::npos
+      ) {
         get_all_files(entry.path());
       }
     }
