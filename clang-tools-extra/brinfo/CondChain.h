@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Condition.h"
 #include "nlohmann/json.hpp"
 #include <set>
@@ -95,7 +97,7 @@ struct CondChainInfo {
   json toTestReqs(ASTContext *Context);
   string getReturnStr(ASTContext *Context, string ReturnType);
 
-  set<pair<const Stmt *, bool>> getCondSet() const;
+  set<tuple<const Stmt *, string, bool>> getCondSet() const;
 };
 
 struct CondSimp {

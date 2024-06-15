@@ -116,6 +116,34 @@ string LoopCond::toString(const ASTContext *Context) {
   return OS.str();
 }
 
+void CaseCond::setCondStr(const ASTContext *Context) {
+  if (!CondStr.empty())
+    return;
+  llvm::raw_string_ostream OS(CondStr);
+  if (Cond->getStmtClass() == Stmt::BinaryOperatorClass &&
+      cast<BinaryOperator>(Cond)->getOpcode() == BinaryOperatorKind::BO_NE) {
+    IsNot = true;
+    Expr *LHS = cast<BinaryOperator>(Cond)->getLHS()->IgnoreParenImpCasts();
+    Expr *RHS = cast<BinaryOperator>(Cond)->getRHS()->IgnoreParenImpCasts();
+    LHS->printPretty(OS, nullptr, Context->getPrintingPolicy());
+    OS << " == ";
+    RHS->printPretty(OS, nullptr, Context->getPrintingPolicy());
+  } else if (Cond->getStmtClass() == Stmt::UnaryOperatorClass &&
+             cast<UnaryOperator>(Cond)->getOpcode() ==
+                 UnaryOperatorKind::UO_LNot) {
+    IsNot = true;
+    Expr *SubExpr =
+        cast<UnaryOperator>(Cond)->getSubExpr()->IgnoreParenImpCasts();
+    SubExpr->printPretty(OS, nullptr, Context->getPrintingPolicy());
+  } else {
+    Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
+  }
+  rtrim(CondStr);
+  OS << " == ";
+  Case->printPretty(OS, nullptr, Context->getPrintingPolicy());
+  rtrim(CondStr);
+}
+
 void CaseCond::dump(const ASTContext *Context) {
   Cond->dumpPretty(*Context);
   outs() << ": ";
@@ -129,6 +157,41 @@ string CaseCond::toString(const ASTContext *Context) {
   OS << ": ";
   Case->printPretty(OS, nullptr, Context->getPrintingPolicy());
   return OS.str();
+}
+
+void DefaultCond::setCondStr(const ASTContext *Context) {
+  if (!CondStr.empty())
+    return;
+  llvm::raw_string_ostream OS(CondStr);
+  if (Cond->getStmtClass() == Stmt::BinaryOperatorClass &&
+      cast<BinaryOperator>(Cond)->getOpcode() == BinaryOperatorKind::BO_NE) {
+    IsNot = true;
+    Expr *LHS = cast<BinaryOperator>(Cond)->getLHS()->IgnoreParenImpCasts();
+    Expr *RHS = cast<BinaryOperator>(Cond)->getRHS()->IgnoreParenImpCasts();
+    LHS->printPretty(OS, nullptr, Context->getPrintingPolicy());
+    OS << " == ";
+    RHS->printPretty(OS, nullptr, Context->getPrintingPolicy());
+  } else if (Cond->getStmtClass() == Stmt::UnaryOperatorClass &&
+             cast<UnaryOperator>(Cond)->getOpcode() ==
+                 UnaryOperatorKind::UO_LNot) {
+    IsNot = true;
+    Expr *SubExpr =
+        cast<UnaryOperator>(Cond)->getSubExpr()->IgnoreParenImpCasts();
+    SubExpr->printPretty(OS, nullptr, Context->getPrintingPolicy());
+  } else {
+    Cond->printPretty(OS, nullptr, Context->getPrintingPolicy());
+  }
+  rtrim(CondStr);
+  string SwitchValue = CondStr;
+  unsigned I = 0;
+  for (const Stmt *Case : Cases) {
+    if (I++ > 0) {
+      OS << " || " << SwitchValue;
+    }
+    OS << " == ";
+    Case->printPretty(OS, nullptr, Context->getPrintingPolicy());
+  }
+  rtrim(CondStr);
 }
 
 void DefaultCond::dump(const ASTContext *Context) {

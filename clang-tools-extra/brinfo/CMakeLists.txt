@@ -19,6 +19,10 @@ clang_target_link_libraries(brinfo
   nlohmann_json::nlohmann_json
   )
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(brinfo PRIVATE DEBUG)
+endif()
+
 install(TARGETS brinfo
   RUNTIME DESTINATION bin
   COMPONENT brinfo)

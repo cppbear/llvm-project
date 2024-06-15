@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Analysis.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Execution.h"

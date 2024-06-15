@@ -1,9 +1,21 @@
+#pragma once
+
 #include "CondChain.h"
 #include <unordered_set>
 
 namespace BrInfo {
 
 enum AnalysisType { FILE, FUNC };
+
+const unsigned MaxChains = 1000;
+
+struct BlkCond {
+  long Parent = -1;
+  const CFGBlock *Block = nullptr;
+  BaseCond *Condition = nullptr;
+  bool Flag = false;
+  bool InLoop = false;
+};
 
 class Analysis {
 
@@ -18,20 +30,22 @@ private:
   json Results;
   unordered_set<string> VisitedFuncs;
 
-  vector<CondChainList> BlkChain;
+  CondChainList CondChainForBlk;
+  CondChainList CondChains;
   vector<unsigned char> ColorOfBlk;
-  long Parent;
+
+  unordered_map<unsigned, unordered_set<unsigned>> LoopInner;
 
   void setSignature();
   void extractCondChains();
-  long findBestCover(set<pair<const Stmt *, bool>> &Uncovered,
+  long findBestCover(set<tuple<const Stmt *, string, bool>> &Uncovered,
                      const CondChainList &CondChains, vector<bool> &Used);
   unordered_set<unsigned> findMinCover();
   void condChainsToReqs();
   void clear();
 
   void toBlack();
-  void dfsTraverseCFG(CFGBlock *Blk, BaseCond *Condition, bool Flag);
+  void dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk);
   void dumpCondChains();
   void dumpBlkChain(unsigned ID);
   void dumpBlkChain();

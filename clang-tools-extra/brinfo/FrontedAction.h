@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Analysis.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CFG.h"
