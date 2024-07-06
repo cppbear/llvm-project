@@ -21,30 +21,26 @@
 #include <string>
 #include <vector>
 
-AllContextPaths *gac_all_context_paths;
+// AllContextPaths *gac_all_context_paths;
 std::string gac_project_path;
 std::string gac_compilation_database_path;
 std::string gac_file_path;
 std::vector<ADefine> gac_defines;
-std::vector<Class> gac_classes;
-std::vector<Function> gac_functions;
+// std::vector<Class> gac_classes;
+// std::vector<Function> gac_functions;
 
-void OneFileContext::set_global_vars() {
-  ::gac_all_context_paths = all_context_paths;
+void FileContexts::push_back(FileContext file_context) {
+  file_contexts.push_back(file_context);
+}
+
+void FileContext::set_global_vars() {
+  // ::gac_all_context_paths = all_context_paths;
   ::gac_project_path = project_path;
   ::gac_compilation_database_path = compilation_database_path;
   ::gac_file_path = file_path;
 }
 
-void applications_cout(std::vector<Application> &applications) {
-  std::cout << "applications:" << std::endl;
-  for (auto application : applications) {
-    std::cout << application.file_path << " " << application.class_name << " "
-              << application.signature << std::endl;
-  }
-}
-
-void OneFileContext::get_includes() {
+void FileContext::get_includes() {
   std::ifstream file(file_path);
   if (!file.is_open()) {
     std::cerr << "Unable to open the focal file!" << "\n";
@@ -57,14 +53,14 @@ void OneFileContext::get_includes() {
       if (start != std::string::npos && end != std::string::npos &&
           start < end) {
         std::string header = line.substr(start, end - start);
-        file_context.includes.push_back(header);
+        file_contexts->back_insert_include(header);
       }
     }
   }
   file.close();
 }
 
-void OneFileContext::get_test_macros() {
+void FileContext::get_test_macros() {
   std::ifstream file(file_path);
   if (!file.is_open()) {
     std::cerr << "Unable to open the focal file!" << "\n";
@@ -118,7 +114,7 @@ void OneFileContext::get_test_macros() {
       }
       if (n == 0) {
         TestMacro a_test_macro = {key, a_macro};
-        file_context.test_macros.push_back(a_test_macro);
+        file_contexts->back_insert_test_macro(a_test_macro);
         is_inside_test_function = false;
         a_macro = "";
         key = "";
@@ -177,10 +173,10 @@ public:
   }
 };
 
-void OneFileContext::get_defines() {
+void FileContext::get_defines() {
   ::gac_defines.clear();
   Tool.run(newFrontendActionFactory<DefineGeterFrontendAction>().get());
-  file_context.defines = ::gac_defines;
+  file_contexts->back_insert_defines(::gac_defines);
 }
 
 class GlobalVarMatchFinder : public MatchFinder::MatchCallback {
@@ -339,7 +335,7 @@ public:
 DeclarationMatcher globalvarMatcher =
     varDecl(hasGlobalStorage()).bind("globalvars");
 
-void OneFileContext::get_global_vars() {
+void FileContext::get_global_vars() {
   GlobalVarMatchFinder Printer(file_path);
   MatchFinder Finder;
   Finder.addMatcher(globalvarMatcher, &Printer);
@@ -375,8 +371,8 @@ bool StmtVarFunctionVisitor::VisitCallExpr(CallExpr *Call) {
       std::string signature = get_signature(Callee);
       // std::cout << "Class " << class_name << " Method " << function_name
       //           << " Call" << std::endl;
-      // std::cout << class_name << std::endl;
-      // std::cout << signature << std::endl;
+      std::cout << class_name << std::endl;
+      std::cout << signature << std::endl;
       if (gac_all_context_paths->hasClassMethodPath(class_name, signature)) {
         std::string file_path =
             gac_all_context_paths->getClassMethodPath(class_name, signature);
@@ -394,7 +390,7 @@ bool StmtVarFunctionVisitor::VisitCallExpr(CallExpr *Call) {
       std::string function_name = Callee->getNameAsString();
       // std::cout << "Function Call " << function_name << std::endl;
       std::string signature = get_signature(Callee);
-      // std::cout << signature << std::endl;
+      std::cout << signature << std::endl;
       if (gac_all_context_paths->hasFunctionPath(signature)) {
         std::string file_path =
             gac_all_context_paths->getFunctionPath(signature);
@@ -418,35 +414,37 @@ bool StmtVarFunctionVisitor::VisitVarDecl(VarDecl *Var) {
     qualType = qualType.getUnqualifiedType();
     qualType = qualType.getCanonicalType();
     // const clang::Type *typePtr = qualType.getTypePtr();
-    // while (const TypedefType *typedefType = dyn_cast<TypedefType>(typePtr)) {
-    //   const TypedefNameDecl *typedefDecl = typedefType->getDecl();
-    //   qualType = typedefDecl->getUnderlyingType();
-    // }
-    std::string class_name = qualType.getAsString();
-    if (gac_all_context_paths->hasClass(class_name)) {
-      std::vector<std::pair<std::string, std::string>> need_constructors =
-          gac_all_context_paths->getClassConstructor(class_name);
-      for (int i = 0; i < need_constructors.size(); i++) {
-        std::string function_name = class_name;
-        std::string signature = need_constructors[i].first;
-        std::string file_path = need_constructors[i].second;
-        Application application;
-        application.file_path = file_path;
-        application.class_name = class_name;
-        application.signature = signature;
-        applications.push_back(application);
-      }
-      std::pair<std::string, std::string> need_destructor =
-          gac_all_context_paths->getClassDestructor(class_name);
-      if (need_destructor.first != "class") {
-        std::string function_name = "~" + class_name;
-        std::string signature = need_destructor.first;
-        std::string file_path = need_destructor.second;
-        Application application;
-        application.file_path = file_path;
-        application.class_name = class_name;
-        application.signature = signature;
-        applications.push_back(application);
+    // while (const TypedefType *typedefType =
+    dyn_cast<TypedefType>(typePtr)) {
+      //   const TypedefNameDecl *typedefDecl = typedefType->getDecl();
+      //   qualType = typedefDecl->getUnderlyingType();
+      // }
+      std::string class_name = qualType.getAsString();
+      if (gac_all_context_paths->hasClass(class_name)) {
+        std::vector<std::pair<std::string, std::string>> need_constructors =
+            gac_all_context_paths->getClassConstructor(class_name);
+        for (int i = 0; i < need_constructors.size(); i++) {
+          std::string function_name = class_name;
+          std::string signature = need_constructors[i].first;
+          std::string file_path = need_constructors[i].second;
+          Application application;
+          application.file_path = file_path;
+          application.class_name = class_name;
+          application.signature = signature;
+          applications.push_back(application);
+        }
+        std::pair<std::string, std::string> need_destructor =
+            gac_all_context_paths->getClassDestructor(class_name);
+        if (need_destructor.first != "class") {
+          std::string function_name = "~" + class_name;
+          std::string signature = need_destructor.first;
+          std::string file_path = need_destructor.second;
+          Application application;
+          application.file_path = file_path;
+          application.class_name = class_name;
+          application.signature = signature;
+          applications.push_back(application);
+        }
       }
     }
   }
@@ -545,7 +543,8 @@ public:
               dyn_cast<CXXRecordDecl>(Func->getParent());
           std::string class_name = ParentClass->getNameAsString();
           if (gac_all_context_paths->hasClass(class_name)) {
-            // std::cout << "Class Declaration " << class_name << std::endl;
+            // std::cout << "Class Declaration " << class_name <<
+            std::endl;
             bool b = 0;
             for (int i = 0; i < gac_classes.size(); i++) {
               if (class_name == gac_classes[i].class_name) {
@@ -836,7 +835,7 @@ public:
   }
 };
 
-void OneFileContext::get_context() {
+void FileContext::get_context() {
   ::gac_classes.clear();
   ::gac_functions.clear();
   Tool.run(newFrontendActionFactory<MethodFunctionAction>().get());
@@ -844,7 +843,14 @@ void OneFileContext::get_context() {
   file_context.functions = ::gac_functions;
 }
 
-FileContext OneFileContext::get_file_context() { return file_context; }
+void FileContext::get_one_file_context() {
+  set_global_vars();
+  get_includes();
+  get_defines();
+  get_global_vars();
+  get_test_macros();
+  get_context();
+}
 
 Class FileContext::get_simple_class(std::string class_name) {
   for (auto a_class : classes) {
@@ -1021,6 +1027,25 @@ void FileContext::cout() {
   }
 }
 
-void get_all_applications(std::set<Application> all_applications,
-                          std::string a_file_path, std::string class_name,
-                          std::string signature);
+void GetFileContext::get_all_file_contexts() {
+  for (auto file_path : file_paths) {
+    std::vector<const char *> args{"file_context", "-p", RealBuildPath.c_str(),
+                                   file_path.c_str()};
+    int argc = args.size();
+    const char **argv = args.data();
+    auto ExpectedParser =
+        CommonOptionsParser::create(argc, argv, FocxtCategory);
+    if (!ExpectedParser) {
+      errs() << ExpectedParser.takeError();
+      return 1;
+    }
+    CommonOptionsParser &OptionParser = ExpectedParser.get();
+    ClangTool Tool(OptionParser.getCompilations(),
+                   OptionParser.getSourcePathList());
+    OneFileContext one_file_context(Tool, all_context_paths, RealProjectPath,
+                                    RealBuildPath, file_path);
+    file_contexts.push_back(one_file_context.get_file_context());
+  }
+}
+
+FileContexts GetFileContext::get_file_contexts() { return file_contexts; }

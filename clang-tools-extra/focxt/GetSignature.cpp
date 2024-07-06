@@ -2,6 +2,7 @@
 
 std::string get_signature(const FunctionDecl *function) {
   function = function->getCanonicalDecl();
+  // function->dump();
   std::string signature;
   if (!isa<CXXMethodDecl>(function)) {
     signature = function->getReturnType().getAsString() + " ";
@@ -18,6 +19,12 @@ std::string get_signature(const FunctionDecl *function) {
   } else {
     const CXXRecordDecl *ParentClass =
         dyn_cast<CXXRecordDecl>(function->getParent());
+    // ParentClass->dump();
+    // if (isa<ClassTemplateSpecializationDecl>(ParentClass)) {
+    //   dyn_cast<ClassTemplateSpecializationDecl>(ParentClass)
+    //       ->getTemplatedDecl()
+    //       ->dump();
+    // }
     if (isa<CXXConstructorDecl>(function)) {
       signature = signature + ParentClass->getNameAsString() +
                   "::" + function->getNameAsString() + "(";

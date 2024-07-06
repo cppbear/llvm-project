@@ -7,6 +7,19 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "debug focxt",
+            "program": "${workspaceFolder}/build/bin/focxt",
+            "args": [
+                "--project",
+                "/home/abezbm/cmake_example",
+                "--build",
+                "/home/abezbm/cmake_example/build",
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug",
             "program": "build/debug/bin/brinfo",
             // "args": [
