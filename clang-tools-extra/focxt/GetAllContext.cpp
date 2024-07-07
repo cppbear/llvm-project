@@ -1027,9 +1027,19 @@ void FileContext::cout() {
   }
 }
 
+void FileContext::get_one_file_context() {
+  void set_global_vars();
+  void get_includes();
+  void get_defines();
+  void get_global_vars();
+  void get_test_macros();
+  void get_context();
+}
+
 void GetFileContext::get_all_file_contexts() {
-  for (auto file_path : file_paths) {
-    std::vector<const char *> args{"file_context", "-p", RealBuildPath.c_str(),
+  for (auto file_path : *file_paths) {
+    std::vector<const char *> args{"file_context", "-p",
+                                   compilation_database_path.c_str(),
                                    file_path.c_str()};
     int argc = args.size();
     const char **argv = args.data();
@@ -1037,14 +1047,14 @@ void GetFileContext::get_all_file_contexts() {
         CommonOptionsParser::create(argc, argv, FocxtCategory);
     if (!ExpectedParser) {
       errs() << ExpectedParser.takeError();
-      return 1;
+      exit(1);
     }
     CommonOptionsParser &OptionParser = ExpectedParser.get();
     ClangTool Tool(OptionParser.getCompilations(),
                    OptionParser.getSourcePathList());
-    OneFileContext one_file_context(Tool, all_context_paths, RealProjectPath,
-                                    RealBuildPath, file_path);
-    file_contexts.push_back(one_file_context.get_file_context());
+    FileContext file_context(Tool, file_path);
+    file_context.get_one_file_context();
+    file_contexts.push_back(file_context);
   }
 }
 

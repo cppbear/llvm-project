@@ -1,5 +1,4 @@
 #pragma once
-// #include "GetAllPath.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
@@ -11,6 +10,7 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
+#include <GetAllDefinition.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <filesystem>
 #include <fstream>
@@ -31,7 +31,6 @@ using namespace llvm;
 struct GlobalVar {
   std::string global_var;
   std::string its_namespace;
-  std::vector<Application> applications;
 };
 
 struct ADefine {
@@ -51,12 +50,15 @@ struct InFileFunction {
 };
 
 class FileContext {
+  ClangTool &Tool;
   std::string file_path;
   std::vector<std::string> includes;
   std::vector<ADefine> defines;
   std::vector<GlobalVar> global_vars;
   std::vector<InFileFunction> functions;
   std::vector<TestMacro> test_macros;
+  std::vector<Alias> alias;
+  std::vector<Application> applications;
 
   void set_global_vars();
   void get_includes();
@@ -67,7 +69,8 @@ class FileContext {
 
 public:
   FileContext() = default;
-  FileContext(std::string file_path) : file_path(file_path) {}
+  FileContext(ClangTool &Tool, std::string file_path)
+      : Tool(Tool), file_path(file_path) {}
   Class get_simple_class(std::string class_name);
   bool class_has_constructor(std::string class_name, std::string signature);
   Constructor class_get_constructor(std::string class_name,
@@ -82,6 +85,8 @@ public:
                                              std::string function_name);
   std::vector<TestMacro> get_must_test_macros(std::string second_parameter);
   void cout();
+
+  void get_one_file_context();
 };
 
 class FileContexts {
