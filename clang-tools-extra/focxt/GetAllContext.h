@@ -49,6 +49,12 @@ struct InFileFunction {
   std::string signature;
 };
 
+struct InFileAlias {
+  std::string alias_name;
+  std::string base_name;
+  std::string its_namespace;
+};
+
 class FileContext {
   ClangTool &Tool;
   std::string file_path;
@@ -57,7 +63,7 @@ class FileContext {
   std::vector<GlobalVar> global_vars;
   std::vector<InFileFunction> functions;
   std::vector<TestMacro> test_macros;
-  std::vector<Alias> alias;
+  std::vector<InFileAlias> alias;
   std::vector<Application> applications;
 
   void set_global_vars();
@@ -86,7 +92,10 @@ public:
   std::vector<TestMacro> get_must_test_macros(std::string second_parameter);
   void cout();
 
+  void delete_repeated_applications();
   void get_one_file_context();
+  json get_file_j();
+  json get_j(bool test_flag);
 };
 
 class FileContexts {
@@ -94,6 +103,7 @@ class FileContexts {
 
 public:
   void push_back(FileContext file_context);
+  json get_j(bool test_flag);
 };
 
 class GetFileContext {
@@ -102,15 +112,18 @@ class GetFileContext {
   std::string compilation_database_path;
   std::vector<std::string> *file_paths;
   cl::OptionCategory FocxtCategory;
+  ClassesAndFunctions classes_and_functions;
 
 public:
   GetFileContext(std::string project_path,
                  std::string compilation_database_path,
                  std::vector<std::string> *file_paths,
-                 cl::OptionCategory FocxtCategory)
+                 cl::OptionCategory FocxtCategory,
+                 ClassesAndFunctions classes_and_functions)
       : project_path(project_path),
         compilation_database_path(compilation_database_path),
-        file_paths(file_paths), FocxtCategory(FocxtCategory) {}
+        file_paths(file_paths), FocxtCategory(FocxtCategory),
+        classes_and_functions(classes_and_functions) {}
   void get_all_file_contexts();
   FileContexts get_file_contexts();
 };

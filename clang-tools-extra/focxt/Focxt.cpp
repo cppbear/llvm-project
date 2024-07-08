@@ -118,292 +118,52 @@ int main(int argc, const char **argv) {
   get_classes_and_functions.get_definitions();
   ClassesAndFunctions classes_and_functions =
       get_classes_and_functions.get_classes_and_functions();
-  classes_and_functions.cout();
+  // classes_and_functions.cout();
   GetFileContext get_file_context(RealProjectPath, RealBuildPath, file_paths,
-                                  FocxtCategory);
-  // json j;
-  // // int i = 0;
-  // for (auto file_context : file_contexts) {
-  //   // file_context.cout();
-  //   // i++;
-  //   for (auto a_class : file_context.classes) {
-  //     for (auto constructor : a_class.constructors) {
-  //       if (constructor.function_body != "") {
-  //         json temp_j = json::object();
-  //         SignatureContext constructor_signature_context =
-  //             get_signature_context(file_contexts, file_context.file_path,
-  //                                   a_class.class_name,
-  //                                   constructor.signature);
-  //         json constructor_signatre_j =
-  //         constructor_signature_context.get_j();
-  //         temp_j[file_context.file_path] = json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + a_class.class_name] =
-  //                   json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + a_class.class_name]["focal"] =
-  //                   json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + a_class.class_name]["focal"] =
-  //                   constructor_signatre_j[file_context.file_path]
-  //                                         [a_class.class_name +
-  //                                          "::" + a_class.class_name];
-  //         if (RealTestFlag) {
-  //           std::vector<TestMacro> may_tests = get_may_tests(
-  //               file_contexts, a_class.class_name, a_class.class_name);
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" +
-  //                 a_class.class_name]["may_test"] =
-  //                     json::object();
-  //           for (auto may_test : may_tests) {
-  //             std::pair<std::string, std::pair<std::string, std::string>>
-  //                 may_test_class_signature =
-  //                     all_context_paths->getTest(may_test.second_parameter);
-  //             SignatureContext may_test_signature_context =
-  //                 get_signature_context(file_contexts,
-  //                                       may_test_class_signature.first,
-  //                                       may_test_class_signature.second.first,
-  //                                       may_test_class_signature.second.second);
-  //             json may_test_signature_j = may_test_signature_context.get_j();
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   a_class.class_name]["may_test"]
-  //                   [may_test.second_parameter] = json::object();
-  //             for (auto [key, value] : may_test_signature_j.items()) {
-  //               for (auto [key1, value1] : value.items()) {
-  //                 temp_j[file_context.file_path]
-  //                       [a_class.class_name + "::" + a_class.class_name]
-  //                       ["may_test"][may_test.second_parameter] = value1;
-  //               }
-  //             }
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   a_class.class_name]["may_test"]
-  //                   [may_test.second_parameter]["test_macro"] =
-  //                   json::object();
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   a_class.class_name]["may_test"]
-  //                   [may_test.second_parameter]["test_macro"] =
-  //                       may_test.test_mecro;
-  //           }
-  //         }
-  //         j.merge_patch(temp_j);
-  //       }
-  //     }
-  //     if (a_class.destructor.function_body != "") {
-  //       std::string function_name = "~" + a_class.class_name;
-  //       json temp_j = json::object();
-  //       SignatureContext destructor_signature_context =
-  //       get_signature_context(
-  //           file_contexts, file_context.file_path, a_class.class_name,
-  //           a_class.destructor.signature);
-  //       json destructor_signatre_j = destructor_signature_context.get_j();
-  //       temp_j[file_context.file_path] = json::object();
-  //       temp_j[file_context.file_path]
-  //             [a_class.class_name + "::" + function_name] = json::object();
-  //       temp_j[file_context.file_path]
-  //             [a_class.class_name + "::" + function_name]["focal"] =
-  //                 json::object();
-  //       temp_j[file_context.file_path][a_class.class_name +
-  //                                      "::" + function_name]["focal"] =
-  //           destructor_signatre_j[file_context.file_path]
-  //                                [a_class.class_name + "::" + function_name];
-  //       if (RealTestFlag) {
-  //         std::vector<TestMacro> may_tests =
-  //             get_may_tests(file_contexts, a_class.class_name,
-  //             function_name);
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + function_name]["may_test"] =
-  //                   json::object();
-  //         for (auto may_test : may_tests) {
-  //           std::pair<std::string, std::pair<std::string, std::string>>
-  //               may_test_class_signature =
-  //                   all_context_paths->getTest(may_test.second_parameter);
-  //           SignatureContext may_test_signature_context =
-  //           get_signature_context(
-  //               file_contexts, may_test_class_signature.first,
-  //               may_test_class_signature.second.first,
-  //               may_test_class_signature.second.second);
-  //           json may_test_signature_j = may_test_signature_context.get_j();
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" + function_name]["may_test"]
-  //                 [may_test.second_parameter] = json::object();
-  //           for (auto [key, value] : may_test_signature_j.items()) {
-  //             for (auto [key1, value1] : value.items()) {
-  //               temp_j[file_context.file_path]
-  //                     [a_class.class_name + "::" + function_name]["may_test"]
-  //                     [may_test.second_parameter] = value1;
-  //             }
-  //           }
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" + function_name]["may_test"]
-  //                 [may_test.second_parameter]["test_macro"] = json::object();
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" + function_name]["may_test"]
-  //                 [may_test.second_parameter]["test_macro"] =
-  //                     may_test.test_mecro;
-  //         }
-  //       }
-  //       j.merge_patch(temp_j);
-  //     }
-  //     for (auto method : a_class.methods) {
-  //       if (method.function_body != "") {
-  //         json temp_j = json::object();
-  //         SignatureContext method_signature_context =
-  //             get_signature_context(file_contexts, file_context.file_path,
-  //                                   a_class.class_name, method.signature);
-  //         json method_signatre_j = method_signature_context.get_j();
-  //         temp_j[file_context.file_path] = json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + method.method_name] =
-  //                   json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + method.method_name]["focal"] =
-  //                   json::object();
-  //         temp_j[file_context.file_path][a_class.class_name +
-  //                                        "::" + method.method_name]["focal"]
-  //                                        =
-  //             method_signatre_j[file_context.file_path]
-  //                              [a_class.class_name + "::" +
-  //                              method.method_name];
-  //         if (RealTestFlag) {
-  //           std::vector<TestMacro> may_tests = get_may_tests(
-  //               file_contexts, a_class.class_name, method.method_name);
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" +
-  //                 method.method_name]["may_test"] =
-  //                     json::object();
-  //           for (auto may_test : may_tests) {
-  //             std::pair<std::string, std::pair<std::string, std::string>>
-  //                 may_test_class_signature =
-  //                     all_context_paths->getTest(may_test.second_parameter);
-  //             SignatureContext may_test_signature_context =
-  //                 get_signature_context(file_contexts,
-  //                                       may_test_class_signature.first,
-  //                                       may_test_class_signature.second.first,
-  //                                       may_test_class_signature.second.second);
-  //             json may_test_signature_j = may_test_signature_context.get_j();
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   method.method_name]["may_test"]
-  //                   [may_test.second_parameter] = json::object();
-  //             for (auto [key, value] : may_test_signature_j.items()) {
-  //               for (auto [key1, value1] : value.items()) {
-  //                 temp_j[file_context.file_path]
-  //                       [a_class.class_name + "::" + method.method_name]
-  //                       ["may_test"][may_test.second_parameter] = value1;
-  //               }
-  //             }
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   method.method_name]["may_test"]
-  //                   [may_test.second_parameter]["test_macro"] =
-  //                   json::object();
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   method.method_name]["may_test"]
-  //                   [may_test.second_parameter]["test_macro"] =
-  //                       may_test.test_mecro;
-  //           }
-  //         }
-  //         j.merge_patch(temp_j);
-  //       }
-  //     }
-  //   }
-  //   for (auto function : file_context.functions) {
-  //     if (function.function_body != "") {
-  //       json temp_j = json::object();
-  //       SignatureContext function_signature_context = get_signature_context(
-  //           file_contexts, file_context.file_path, "class",
-  //           function.signature);
-  //       json function_signatre_j = function_signature_context.get_j();
-  //       temp_j[file_context.file_path] = json::object();
-  //       temp_j[file_context.file_path]["class::" + function.function_name] =
-  //           json::object();
-  //       temp_j[file_context.file_path]["class::" + function.function_name]
-  //             ["focal"] = json::object();
-  //       temp_j[file_context.file_path]["class::" + function.function_name]
-  //             ["focal"] =
-  //                 function_signatre_j[file_context.file_path]
-  //                                    ["class::" + function.function_name];
-  //       if (RealTestFlag) {
-  //         std::vector<TestMacro> may_tests =
-  //             get_may_tests(file_contexts, "class", function.function_name);
-  //         temp_j[file_context.file_path]["class::" + function.function_name]
-  //               ["may_test"] = json::object();
-  //         for (auto may_test : may_tests) {
-  //           std::pair<std::string, std::pair<std::string, std::string>>
-  //               may_test_class_signature =
-  //                   all_context_paths->getTest(may_test.second_parameter);
-  //           SignatureContext may_test_signature_context =
-  //           get_signature_context(
-  //               file_contexts, may_test_class_signature.first,
-  //               may_test_class_signature.second.first,
-  //               may_test_class_signature.second.second);
-  //           json may_test_signature_j = may_test_signature_context.get_j();
-  //           temp_j[file_context.file_path]["class::" +
-  //           function.function_name]
-  //                 ["may_test"][may_test.second_parameter] = json::object();
-  //           for (auto [key, value] : may_test_signature_j.items()) {
-  //             for (auto [key1, value1] : value.items()) {
-  //               temp_j[file_context.file_path]
-  //                     ["class::" + function.function_name]["may_test"]
-  //                     [may_test.second_parameter] = value1;
-  //             }
-  //           }
-  //           temp_j[file_context.file_path]["class::" +
-  //           function.function_name]
-  //                 ["may_test"][may_test.second_parameter]["test_macro"] =
-  //                     json::object();
-  //           temp_j[file_context.file_path]["class::" +
-  //           function.function_name]
-  //                 ["may_test"][may_test.second_parameter]["test_macro"] =
-  //                     may_test.test_mecro;
-  //         }
-  //       }
-  //       j.merge_patch(temp_j);
-  //     }
-  //   }
-  // }
-  // // std::string json_path = RealProjectPath;
-  // // json_path = json_path + "/" + "allcontext" + ".json";
-  // // std::ofstream outFile;
-  // // outFile.open(json_path);
-  // // outFile << j.dump(4);
-  // // outFile.close();
-  // // cl::opt<std::string> FileName("file", cl::desc("Specify the file to
-  // // analyze"),
-  // //                               cl::value_desc("string"),
-  // //                               cl::cat(FocxtCategory));
-  // // cl::opt<std::string> ClassName(
-  // //     "class", cl::desc("Specify the class to analyze"),
-  // //     cl::value_desc("string"), cl::cat(FocxtCategory));
-  // // cl::opt<std::string> FunctionName(
-  // //     "function", cl::desc("Specify the function to analyze"),
-  // //     cl::value_desc("string"), cl::cat(FocxtCategory));
-  // if (RealFilePath == "") {
-  //   std::string json_path = RealProjectPath;
-  //   json_path = json_path + "/" + "project_cxt" + ".json";
-  //   // j["type"] = "project";
-  //   std::ofstream outFile;
-  //   outFile.open(json_path);
-  //   outFile << j.dump(4);
-  //   outFile.close();
-  // } else if (RealFunctionName == "") {
-  //   std::string json_path = RealProjectPath;
-  //   std::string file_name =
-  //       RealFilePath.substr(RealFilePath.find_last_of('/') + 1);
-  //   json_path = json_path + "/" + "project_cxt" + ".json";
-  //   json cout_j = json::object();
-  //   cout_j[RealFilePath] = json::object();
-  //   cout_j[RealFilePath] = j[RealFilePath];
-  //   // cout_j["type"] = "file";
-  //   std::ofstream outFile;
-  //   outFile.open(json_path);
-  //   outFile << cout_j.dump(4);
-  //   outFile.close();
-  // } else {
+                                  FocxtCategory, classes_and_functions);
+  get_file_context.get_all_file_contexts();
+  FileContexts file_contexts = get_file_context.get_file_contexts();
+  json j = file_contexts.get_j(TestFlag);
+  // int i = 0;
+  // std::string json_path = RealProjectPath;
+  // json_path = json_path + "/" + "allcontext" + ".json";
+  // std::ofstream outFile;
+  // outFile.open(json_path);
+  // outFile << j.dump(4);
+  // outFile.close();
+  // cl::opt<std::string> FileName("file", cl::desc("Specify the file to
+  // analyze"),
+  //                               cl::value_desc("string"),
+  //                               cl::cat(FocxtCategory));
+  // cl::opt<std::string> ClassName(
+  //     "class", cl::desc("Specify the class to analyze"),
+  //     cl::value_desc("string"), cl::cat(FocxtCategory));
+  // cl::opt<std::string> FunctionName(
+  //     "function", cl::desc("Specify the function to analyze"),
+  //     cl::value_desc("string"), cl::cat(FocxtCategory));
+  if (RealFilePath == "") {
+    std::string json_path = RealProjectPath;
+    json_path = json_path + "/" + "project_cxt" + ".json";
+    // j["type"] = "project";
+    std::ofstream outFile;
+    outFile.open(json_path);
+    outFile << j.dump(4);
+    outFile.close();
+  } else if (RealFunctionName == "") {
+    std::string json_path = RealProjectPath;
+    std::string file_name =
+        RealFilePath.substr(RealFilePath.find_last_of('/') + 1);
+    json_path = json_path + "/" + "project_cxt" + ".json";
+    json cout_j = json::object();
+    cout_j[RealFilePath] = json::object();
+    cout_j[RealFilePath] = j[RealFilePath];
+    // cout_j["type"] = "file";
+    std::ofstream outFile;
+    outFile.open(json_path);
+    outFile << cout_j.dump(4);
+    outFile.close();
+  }
+  // else {
   //   std::string json_path = RealProjectPath;
   //   std::string class_function_name;
   //   if (RealClassName == "") {
@@ -460,6 +220,7 @@ int main(int argc, const char **argv) {
   //   outFile << cout_j.dump(4);
   //   outFile.close();
   // }
+
   delete file_paths;
   return 0;
 }

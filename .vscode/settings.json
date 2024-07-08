@@ -104,6 +104,13 @@
         "simd": "cpp",
         "hash_map": "cpp",
         "hash_set": "cpp",
-        "stacktrace": "cpp"
+        "stacktrace": "cpp",
+        "strstream": "cpp",
+        "csetjmp": "cpp",
+        "cuchar": "cpp",
+        "source_location": "cpp",
+        "spanstream": "cpp",
+        "stdfloat": "cpp",
+        "syncstream": "cpp"
     }
 }

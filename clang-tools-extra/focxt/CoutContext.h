@@ -67,7 +67,8 @@
 //                           std::string file_path, std::string class_name,
 //                           std::string signature);
 
-// SignatureContext get_signature_context(std::vector<FileContext> &file_contexts,
+// SignatureContext get_signature_context(std::vector<FileContext>
+// &file_contexts,
 //                                        std::string file_path,
 //                                        std::string class_name,
 //                                        std::string signature);

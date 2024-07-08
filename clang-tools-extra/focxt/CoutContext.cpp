@@ -1,7 +1,7 @@
 // #include "CoutContext.h"
 
 // // bool SignatureApplication::has(std::string file_path, std::string
-// class_name,
+// // class_name,
 // //                                std::string signature) {
 // //   for (auto file : files) {
 // //     if (file.file_path == file_path) {

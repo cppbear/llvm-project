@@ -9,11 +9,17 @@
             "request": "launch",
             "name": "debug focxt",
             "program": "${workspaceFolder}/build/bin/focxt",
+            // "args": [
+            //     "--project",
+            //     "/home/abezbm/cmake_example",
+            //     "--build",
+            //     "/home/abezbm/cmake_example/build",
+            // ],
             "args": [
                 "--project",
-                "/home/abezbm/cmake_example",
+                "/home/abezbm/jsoncpp",
                 "--build",
-                "/home/abezbm/cmake_example/build",
+                "/home/abezbm/jsoncpp/build",
             ],
             "cwd": "${workspaceFolder}"
         },

@@ -34,21 +34,25 @@ void ClassesAndFunctions::push_back_specialization_parameter(
         if (b == 0) {
           a_class.specialization_parameters.push_back(specialization_parameter);
           for (auto specialization_type : specialization_parameter) {
-            if (this->has_class(specialization_type)) {
-              std::vector<std::string> constructors =
-                  this->get_constructors(specialization_type);
-              std::vector<std::pair<std::string, std::string>> applications;
-              for (auto constructor : constructors) {
-                applications.push_back(std::pair<std::string, std::string>(
-                    specialization_type, constructor));
-              }
-              std::string destructor = this->get_destructor(class_name);
-              if (destructor != "class") {
-                applications.push_back(std::pair<std::string, std::string>(
-                    specialization_type, destructor));
-              }
-              this->push_back_applications(class_name, "", applications);
-            }
+            Application application;
+            application.class_name = specialization_type;
+            application.signature = "";
+            a_class.applications.push_back(application);
+            // if (this->has_class(specialization_type)) {
+            //   std::vector<std::string> constructors =
+            //       this->get_constructors(specialization_type);
+            //   std::vector<std::pair<std::string, std::string>> applications;
+            //   for (auto constructor : constructors) {
+            //     applications.push_back(std::pair<std::string, std::string>(
+            //         specialization_type, constructor));
+            //   }
+            //   std::string destructor = this->get_destructor(class_name);
+            //   if (destructor != "class") {
+            //     applications.push_back(std::pair<std::string, std::string>(
+            //         specialization_type, destructor));
+            //   }
+            //   this->push_back_applications(class_name, "", applications);
+            // }
           }
         }
       }
@@ -69,21 +73,26 @@ void ClassesAndFunctions::push_back_specialization_parameter(
             function.specialization_parameters.push_back(
                 specialization_parameter);
             for (auto specialization_type : specialization_parameter) {
-              if (this->has_class(specialization_type)) {
-                std::vector<std::string> constructors =
-                    this->get_constructors(specialization_type);
-                std::vector<std::pair<std::string, std::string>> applications;
-                for (auto constructor : constructors) {
-                  applications.push_back(std::pair<std::string, std::string>(
-                      specialization_type, constructor));
-                }
-                std::string destructor = this->get_destructor(class_name);
-                if (destructor != "class") {
-                  applications.push_back(std::pair<std::string, std::string>(
-                      specialization_type, destructor));
-                }
-                this->push_back_applications("class", signature, applications);
-              }
+              Application application;
+              application.class_name = specialization_type;
+              application.signature = "";
+              function.applications.push_back(application);
+              // if (this->has_class(specialization_type)) {
+              //   std::vector<std::string> constructors =
+              //       this->get_constructors(specialization_type);
+              //   std::vector<std::pair<std::string, std::string>>
+              //   applications; for (auto constructor : constructors) {
+              //     applications.push_back(std::pair<std::string, std::string>(
+              //         specialization_type, constructor));
+              //   }
+              //   std::string destructor = this->get_destructor(class_name);
+              //   if (destructor != "class") {
+              //     applications.push_back(std::pair<std::string, std::string>(
+              //         specialization_type, destructor));
+              //   }
+              //   this->push_back_applications("class", signature,
+              //   applications);
+              // }
             }
           }
         }
@@ -106,25 +115,30 @@ void ClassesAndFunctions::push_back_specialization_parameter(
                 method.specialization_parameters.push_back(
                     specialization_parameter);
                 for (auto specialization_type : specialization_parameter) {
-                  if (this->has_class(specialization_type)) {
-                    std::vector<std::string> constructors =
-                        this->get_constructors(specialization_type);
-                    std::vector<std::pair<std::string, std::string>>
-                        applications;
-                    for (auto constructor : constructors) {
-                      applications.push_back(
-                          std::pair<std::string, std::string>(
-                              specialization_type, constructor));
-                    }
-                    std::string destructor = this->get_destructor(class_name);
-                    if (destructor != "class") {
-                      applications.push_back(
-                          std::pair<std::string, std::string>(
-                              specialization_type, destructor));
-                    }
-                    this->push_back_applications(class_name, signature,
-                                                 applications);
-                  }
+                  Application application;
+                  application.class_name = specialization_type;
+                  application.signature = "";
+                  method.applications.push_back(application);
+                  // if (this->has_class(specialization_type)) {
+                  //   std::vector<std::string> constructors =
+                  //       this->get_constructors(specialization_type);
+                  //   std::vector<std::pair<std::string, std::string>>
+                  //       applications;
+                  //   for (auto constructor : constructors) {
+                  //     applications.push_back(
+                  //         std::pair<std::string, std::string>(
+                  //             specialization_type, constructor));
+                  //   }
+                  //   std::string destructor =
+                  //   this->get_destructor(class_name); if (destructor !=
+                  //   "class") {
+                  //     applications.push_back(
+                  //         std::pair<std::string, std::string>(
+                  //             specialization_type, destructor));
+                  //   }
+                  //   this->push_back_applications(class_name, signature,
+                  //                                applications);
+                  // }
                 }
               }
             }
@@ -188,6 +202,7 @@ ClassesAndFunctions::get_constructors(std::string class_name) {
       for (auto constructor : a_class.constructors) {
         constructors.push_back(constructor.signature);
       }
+      break;
     }
   }
   return constructors;
@@ -195,9 +210,11 @@ ClassesAndFunctions::get_constructors(std::string class_name) {
 
 std::string ClassesAndFunctions::get_destructor(std::string class_name) {
   for (auto a_class : classes) {
-    if (a_class.class_name == class_name) {
+    if (a_class.class_name == class_name &&
+        a_class.destructor.signature != "") {
       return a_class.destructor.signature;
     }
+    break;
   }
   return "class";
 }
@@ -232,27 +249,6 @@ bool ClassesAndFunctions::has_function(std::string class_name,
     }
   }
   return 0;
-}
-
-bool ClassesAndFunctions::is_function_template(std::string class_name,
-                                               std::string signature) {
-  if (class_name == "class") {
-    for (auto function : functions) {
-      if (function.signature == signature) {
-        return function.is_template;
-      }
-    }
-  } else {
-    for (auto a_class : classes) {
-      if (a_class.class_name == class_name) {
-        for (auto method : a_class.methods) {
-          if (method.signature == signature) {
-            return method.is_template;
-          }
-        }
-      }
-    }
-  }
 }
 
 void ClassesAndFunctions::push_back_function(Function function) {
@@ -379,6 +375,76 @@ void ClassesAndFunctions::cout() {
   }
 }
 
+void update_applications(std::vector<Application> &applications) {
+  for (auto it = applications.begin(); it != applications.end();) {
+    if (it->signature == "" &&
+        !gad_classes_and_functions.has_class(it->class_name)) {
+      it = applications.erase(it);
+      continue;
+    } else if (!gad_classes_and_functions.has_function(it->class_name,
+                                                       it->signature)) {
+      it = applications.erase(it);
+      continue;
+    } else {
+      ++it;
+      continue;
+    }
+  }
+  for (auto it = applications.begin(); it != applications.end();) {
+    if (it->signature == "") {
+      std::string class_name = it->class_name;
+      it = applications.erase(it);
+      std::vector<std::string> need_applications;
+      need_applications =
+          gad_classes_and_functions.get_constructors(class_name);
+      std::string need_destructor =
+          gad_classes_and_functions.get_destructor(class_name);
+      if (need_destructor != "class") {
+        need_applications.push_back(need_destructor);
+      }
+      for (auto need_application : need_applications) {
+        Application application;
+        application.class_name = class_name;
+        application.signature = need_application;
+        applications.push_back(application);
+      }
+    } else {
+      ++it;
+    }
+  }
+  for (auto it = applications.begin(); it != applications.end();) {
+    bool b = 0;
+    for (auto it2 = applications.begin(); it2 != applications.end(); ++it2) {
+      if (it2 != it && it2->class_name == it->class_name &&
+          it2->signature == it->signature) {
+        b = 1;
+        break;
+      }
+    }
+    if (b == 1) {
+      it = applications.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+void ClassesAndFunctions::update_all_applications() {
+  for (auto &a_class : classes) {
+    update_applications(a_class.applications);
+    for (auto &constructor : a_class.constructors) {
+      update_applications(constructor.applications);
+    }
+    update_applications(a_class.destructor.applications);
+    for (auto &method : a_class.methods) {
+      update_applications(method.applications);
+    }
+  }
+  for (auto &function : functions) {
+    update_applications(function.applications);
+  }
+}
+
 bool StmtVarFunctionVisitor::VisitCallExpr(CallExpr *Call) {
   FunctionDecl *Callee = Call->getDirectCallee();
   if (Callee) {
@@ -399,12 +465,12 @@ bool StmtVarFunctionVisitor::VisitCallExpr(CallExpr *Call) {
       //           << " Call" << std::endl;
       //   std::cout << class_name << std::endl;
       //   std::cout << signature << std::endl;
-      if (gad_classes_and_functions.has_function(class_name, signature)) {
-        Application application;
-        application.class_name = class_name;
-        application.signature = signature;
-        applications.push_back(application);
-      }
+      // if (gad_classes_and_functions.has_function(class_name, signature)) {
+      Application application;
+      application.class_name = class_name;
+      application.signature = signature;
+      applications.push_back(application);
+      // }
     } else {
       // std::string file_path;
       // std::string class_name;
@@ -414,12 +480,12 @@ bool StmtVarFunctionVisitor::VisitCallExpr(CallExpr *Call) {
       // std::cout << "Function Call " << function_name << std::endl;
       std::string signature = get_signature(Callee);
       //   std::cout << signature << std::endl;
-      if (gad_classes_and_functions.has_function("class", signature)) {
-        Application application;
-        application.class_name = "class";
-        application.signature = signature;
-        applications.push_back(application);
-      }
+      // if (gad_classes_and_functions.has_function("class", signature)) {
+      Application application;
+      application.class_name = "class";
+      application.signature = signature;
+      applications.push_back(application);
+      // }
     }
   }
   return true;
@@ -442,28 +508,32 @@ bool StmtVarFunctionVisitor::VisitVarDecl(VarDecl *Var) {
     if (class_name.find(" ") != std::string::npos) {
       class_name = class_name.substr(class_name.find_last_of(" ") + 1);
     }
-    if (gad_classes_and_functions.has_class(class_name)) {
-      std::vector<std::string> need_constructors =
-          gad_classes_and_functions.get_constructors(class_name);
-      for (int i = 0; i < need_constructors.size(); i++) {
-        std::string function_name = class_name;
-        std::string signature = need_constructors[i];
-        Application application;
-        application.class_name = class_name;
-        application.signature = signature;
-        applications.push_back(application);
-      }
-      std::string need_destructor =
-          gad_classes_and_functions.get_destructor(class_name);
-      if (need_destructor != "class") {
-        std::string function_name = "~" + class_name;
-        std::string signature = need_destructor;
-        Application application;
-        application.class_name = class_name;
-        application.signature = signature;
-        applications.push_back(application);
-      }
-    }
+    Application application;
+    application.class_name = class_name;
+    application.signature = "";
+    applications.push_back(application);
+    // if (gad_classes_and_functions.has_class(class_name)) {
+    //   std::vector<std::string> need_constructors =
+    //       gad_classes_and_functions.get_constructors(class_name);
+    //   for (int i = 0; i < need_constructors.size(); i++) {
+    //     std::string function_name = class_name;
+    //     std::string signature = need_constructors[i];
+    //     Application application;
+    //     application.class_name = class_name;
+    //     application.signature = signature;
+    //     applications.push_back(application);
+    //   }
+    //   std::string need_destructor =
+    //       gad_classes_and_functions.get_destructor(class_name);
+    //   if (need_destructor != "class") {
+    //     std::string function_name = "~" + class_name;
+    //     std::string signature = need_destructor;
+    //     Application application;
+    //     application.class_name = class_name;
+    //     application.signature = signature;
+    //     applications.push_back(application);
+    //   }
+    // }
   }
   return true;
 }
@@ -550,6 +620,15 @@ public:
               // }
               a_class.fields.push_back(srcText_str);
             } else if (const FieldDecl *Field = dyn_cast<FieldDecl>(decl)) {
+              std::string field_type = Field->getType().getAsString();
+              if (field_type.find(" ") != std::string::npos) {
+                field_type =
+                    field_type.substr(field_type.find_last_of(" ") + 1);
+              }
+              Application application;
+              application.class_name = field_type;
+              application.signature = "";
+              a_class.applications.push_back(application);
               const SourceManager &sourceManager = Context->getSourceManager();
               SourceRange srcRange = Field->getSourceRange();
               srcRange.setEnd(Lexer::getLocForEndOfToken(
@@ -585,6 +664,10 @@ public:
               alias.alias_name = TypeAlias->getNameAsString();
               alias.base_name = TypeAlias->getUnderlyingType().getAsString();
               a_class.aliases.push_back(alias);
+              Application application;
+              application.class_name = alias.base_name;
+              application.signature = "";
+              a_class.applications.push_back(application);
               // if (gad_classes_and_functions.has_class(alias.base_name)) {
               //   std::vector<std::string> constructors =
               //       gad_classes_and_functions.get_constructors(alias.base_name);
@@ -663,7 +746,7 @@ public:
           gad_classes_and_functions.push_back_specialization_parameter(
               class_name, "", specialization_parameter);
         }
-        gad_classes_and_functions.cout();
+        // gad_classes_and_functions.cout();
       }
     }
     return true;
@@ -735,6 +818,15 @@ public:
               // }
               a_class.fields.push_back(srcText_str);
             } else if (const FieldDecl *Field = dyn_cast<FieldDecl>(decl)) {
+              std::string field_type = Field->getType().getAsString();
+              if (field_type.find(" ") != std::string::npos) {
+                field_type =
+                    field_type.substr(field_type.find_last_of(" ") + 1);
+              }
+              Application application;
+              application.class_name = field_type;
+              application.signature = "";
+              a_class.applications.push_back(application);
               const SourceManager &sourceManager = Context->getSourceManager();
               SourceRange srcRange = Field->getSourceRange();
               srcRange.setEnd(Lexer::getLocForEndOfToken(
@@ -770,6 +862,10 @@ public:
               alias.alias_name = TypeAlias->getNameAsString();
               alias.base_name = TypeAlias->getUnderlyingType().getAsString();
               a_class.aliases.push_back(alias);
+              Application application;
+              application.class_name = alias.base_name;
+              application.signature = "";
+              a_class.applications.push_back(application);
               // if (gad_classes_and_functions.has_class(alias.base_name)) {
               //   std::vector<std::string> constructors =
               //       gad_classes_and_functions.get_constructors(alias.base_name);
@@ -829,7 +925,7 @@ public:
           //   std::cout << std::endl;
           gad_classes_and_functions.push_back_class(a_class);
         }
-        gad_classes_and_functions.cout();
+        // gad_classes_and_functions.cout();
       }
     }
     return true;
@@ -868,7 +964,25 @@ public:
                 CharSourceRange::getTokenRange(srcRange_r), sourceManager,
                 Context->getLangOpts(), &Invalid);
             function.return_type = std::string(srcText_r);
+            std::string return_type = Func->getReturnType().getAsString();
+            if (return_type.find(" ") != std::string::npos) {
+              return_type =
+                  return_type.substr(return_type.find_last_of(" ") + 1);
+            }
+            Application application;
+            application.class_name = return_type;
+            application.signature = "";
+            function.applications.push_back(application);
             for (const ParmVarDecl *param : Func->parameters()) {
+              std::string param_type = param->getType().getAsString();
+              if (param_type.find(" ") != std::string::npos) {
+                param_type =
+                    param_type.substr(param_type.find_last_of(" ") + 1);
+              }
+              Application application;
+              application.class_name = param_type;
+              application.signature = "";
+              function.applications.push_back(application);
               SourceRange srcRange_p = param->getSourceRange();
               srcRange_p.setEnd(Lexer::getLocForEndOfToken(
                   srcRange_p.getEnd(), 0, sourceManager,
@@ -956,6 +1070,15 @@ public:
                 bool Invalid = false;
                 constructor.signature = signature;
                 for (const ParmVarDecl *param : Func->parameters()) {
+                  std::string param_type = param->getType().getAsString();
+                  if (param_type.find(" ") != std::string::npos) {
+                    param_type =
+                        param_type.substr(param_type.find_last_of(" ") + 1);
+                  }
+                  Application application;
+                  application.class_name = param_type;
+                  application.signature = "";
+                  constructor.applications.push_back(application);
                   SourceRange srcRange_p = param->getSourceRange();
                   srcRange_p.setEnd(Lexer::getLocForEndOfToken(
                       srcRange_p.getEnd(), 0, sourceManager,
@@ -1036,7 +1159,25 @@ public:
                     CharSourceRange::getTokenRange(srcRange_r), sourceManager,
                     Context->getLangOpts(), &Invalid);
                 method.return_type = std::string(srcText_r);
+                std::string return_type = Func->getReturnType().getAsString();
+                if (return_type.find(" ") != std::string::npos) {
+                  return_type =
+                      return_type.substr(return_type.find_last_of(" ") + 1);
+                }
+                Application application;
+                application.class_name = return_type;
+                application.signature = "";
+                method.applications.push_back(application);
                 for (const ParmVarDecl *param : Func->parameters()) {
+                  std::string param_type = param->getType().getAsString();
+                  if (param_type.find(" ") != std::string::npos) {
+                    param_type =
+                        param_type.substr(param_type.find_last_of(" ") + 1);
+                  }
+                  Application application;
+                  application.class_name = param_type;
+                  application.signature = "";
+                  method.applications.push_back(application);
                   SourceRange srcRange_p = param->getSourceRange();
                   srcRange_p.setEnd(Lexer::getLocForEndOfToken(
                       srcRange_p.getEnd(), 0, sourceManager,
@@ -1067,7 +1208,7 @@ public:
               }
             }
             if (isa<CXXMethodDecl>(Func)) {
-              Declaration->dump();
+              // Declaration->dump();
               for (FunctionDecl *Spec : Declaration->specializations()) {
                 const TemplateArgumentList *TAL =
                     Spec->getTemplateSpecializationArgs();
@@ -1092,7 +1233,7 @@ public:
             }
           }
         }
-        gad_classes_and_functions.cout();
+        // gad_classes_and_functions.cout();
       }
     }
     return true;
@@ -1125,7 +1266,26 @@ public:
                 CharSourceRange::getTokenRange(srcRange_r), sourceManager,
                 Context->getLangOpts(), &Invalid);
             function.return_type = std::string(srcText_r);
+            std::string return_type =
+                Declaration->getReturnType().getAsString();
+            if (return_type.find(" ") != std::string::npos) {
+              return_type =
+                  return_type.substr(return_type.find_last_of(" ") + 1);
+            }
+            Application application;
+            application.class_name = return_type;
+            application.signature = "";
+            function.applications.push_back(application);
             for (const ParmVarDecl *param : Declaration->parameters()) {
+              std::string param_type = param->getType().getAsString();
+              if (param_type.find(" ") != std::string::npos) {
+                param_type =
+                    param_type.substr(param_type.find_last_of(" ") + 1);
+              }
+              Application application;
+              application.class_name = param_type;
+              application.signature = "";
+              function.applications.push_back(application);
               SourceRange srcRange_p = param->getSourceRange();
               srcRange_p.setEnd(Lexer::getLocForEndOfToken(
                   srcRange_p.getEnd(), 0, sourceManager,
@@ -1192,6 +1352,15 @@ public:
                 bool Invalid = false;
                 constructor.signature = signature;
                 for (const ParmVarDecl *param : Declaration->parameters()) {
+                  std::string param_type = param->getType().getAsString();
+                  if (param_type.find(" ") != std::string::npos) {
+                    param_type =
+                        param_type.substr(param_type.find_last_of(" ") + 1);
+                  }
+                  Application application;
+                  application.class_name = param_type;
+                  application.signature = "";
+                  constructor.applications.push_back(application);
                   SourceRange srcRange_p = param->getSourceRange();
                   srcRange_p.setEnd(Lexer::getLocForEndOfToken(
                       srcRange_p.getEnd(), 0, sourceManager,
@@ -1268,7 +1437,26 @@ public:
                     CharSourceRange::getTokenRange(srcRange_r), sourceManager,
                     Context->getLangOpts(), &Invalid);
                 method.return_type = std::string(srcText_r);
+                std::string return_type =
+                    Declaration->getReturnType().getAsString();
+                if (return_type.find(" ") != std::string::npos) {
+                  return_type =
+                      return_type.substr(return_type.find_last_of(" ") + 1);
+                }
+                Application application;
+                application.class_name = return_type;
+                application.signature = "";
+                method.applications.push_back(application);
                 for (const ParmVarDecl *param : Declaration->parameters()) {
+                  std::string param_type = param->getType().getAsString();
+                  if (param_type.find(" ") != std::string::npos) {
+                    param_type =
+                        param_type.substr(param_type.find_last_of(" ") + 1);
+                  }
+                  Application application;
+                  application.class_name = param_type;
+                  application.signature = "";
+                  method.applications.push_back(application);
                   SourceRange srcRange_p = param->getSourceRange();
                   srcRange_p.setEnd(Lexer::getLocForEndOfToken(
                       srcRange_p.getEnd(), 0, sourceManager,
@@ -1300,7 +1488,7 @@ public:
             }
           }
         }
-        gad_classes_and_functions.cout();
+        // gad_classes_and_functions.cout();
       }
     }
     return true;
@@ -1352,9 +1540,345 @@ void GetClassesAndFunctions::get_definitions() {
                    OptionParser.getSourcePathList());
     Tool.run(newFrontendActionFactory<FindClassesAndFunctionsAction>().get());
   }
+  gad_classes_and_functions.update_all_applications();
   classes_and_functions = gad_classes_and_functions;
 }
 
 ClassesAndFunctions GetClassesAndFunctions::get_classes_and_functions() {
   return classes_and_functions;
+}
+
+std::vector<Application>
+ClassesAndFunctions::get_applications(std::string class_name,
+                                      std::string signature) {
+  if (class_name != "class") {
+    for (auto a_class : classes) {
+      for (auto constructor : a_class.constructors) {
+        if (constructor.signature == signature) {
+          return constructor.applications;
+        }
+      }
+      if (a_class.destructor.signature == signature) {
+        return a_class.destructor.applications;
+      }
+      for (auto method : a_class.methods) {
+        if (method.signature == signature) {
+          return method.applications;
+        }
+      }
+    }
+  } else {
+    for (auto function : functions) {
+      if (function.signature == signature) {
+        return function.applications;
+      }
+    }
+  }
+}
+
+void ClassesAndFunctions::get_all_applications(
+    std::vector<Application> *applications) {
+  for (auto application : *applications) {
+    std::vector<Application> need_applications =
+        get_applications(application.class_name, application.signature);
+    for (auto need_application : need_applications) {
+      bool b = 0;
+      for (auto exist_application : *applications) {
+        if (exist_application == need_application) {
+          b = 1;
+          break;
+        }
+      }
+      if (b == 0) {
+        applications->push_back(need_application);
+      }
+    }
+  }
+}
+
+json ClassesAndFunctions::get_simple_class(std::string class_name) {
+  json j;
+  for (auto a_class : classes) {
+    if (a_class.class_name == class_name) {
+      j[a_class.its_namespace] = json::object();
+      j[a_class.its_namespace]["class"] = json::object();
+      j[a_class.its_namespace]["class"][a_class.class_name] = json::object();
+      j[a_class.its_namespace]["class"][a_class.class_name]["base_class"] =
+          json::object();
+      j[a_class.its_namespace]["class"][a_class.class_name]["base_class"] =
+          a_class.base_class;
+      j[a_class.its_namespace]["class"][a_class.class_name]["is_template"] =
+          json::object();
+      if (a_class.is_template == 1) {
+        j[a_class.its_namespace]["class"][a_class.class_name]["is_template"] =
+            "true";
+        j[a_class.its_namespace]["class"][a_class.class_name]
+         ["template_parameters"] = json::array();
+        j[a_class.its_namespace]["class"][a_class.class_name]
+         ["template_parameters"] = a_class.template_parameters;
+        j[a_class.its_namespace]["class"][a_class.class_name]
+         ["specialization_parameters"] = json::array();
+        for (auto specialization_parameter :
+             a_class.specialization_parameters) {
+          std::string specialization_parameter_string = "<";
+          int i = 0;
+          for (auto specialization_parameter_type : specialization_parameter) {
+            if (i == 0) {
+              specialization_parameter_string =
+                  specialization_parameter_string +
+                  specialization_parameter_type;
+            } else {
+              specialization_parameter_string =
+                  specialization_parameter_string + "," +
+                  specialization_parameter_type;
+            }
+            i++;
+          }
+          specialization_parameter_string =
+              specialization_parameter_string + ">";
+          j[a_class.its_namespace]["class"][a_class.class_name]
+           ["specialization_parameters"]
+               .push_back(specialization_parameter_string);
+        }
+      } else {
+        j[a_class.its_namespace]["class"][a_class.class_name]["is_template"] =
+            "false";
+      }
+      j[a_class.its_namespace]["class"][a_class.class_name]["alias"] =
+          json::array();
+      for (auto alias : a_class.aliases) {
+        std::string alias_string =
+            "using " + alias.alias_name + " = " + alias.base_name;
+        j[a_class.its_namespace]["class"][a_class.class_name]["alias"]
+            .push_back(alias_string);
+      }
+      j[a_class.its_namespace]["class"][a_class.class_name]["constructor"] =
+          json::object();
+      for (auto constructor : a_class.constructors) {
+        j[a_class.its_namespace]["class"][a_class.class_name]["constructor"]
+         [constructor.signature] = json::object();
+        j[a_class.its_namespace]["class"][a_class.class_name]["constructor"]
+         [constructor.signature]["function_body"] = json::object();
+        j[a_class.its_namespace]["class"][a_class.class_name]["constructor"]
+         [constructor.signature]["parameters"] = json::array();
+      }
+      j[a_class.its_namespace]["class"][a_class.class_name]["destructor"] =
+          json::object();
+      j[a_class.its_namespace]["class"][a_class.class_name]["destructor"]
+       ["function_body"] = json::object();
+      j[a_class.its_namespace]["class"][a_class.class_name]["destructor"]
+       ["signature"] = json::object();
+      j[a_class.its_namespace]["class"][a_class.class_name]["destructor"]
+       ["signature"] = a_class.destructor.signature;
+      j[a_class.its_namespace]["class"][a_class.class_name]["fields"] =
+          json::array();
+      j[a_class.its_namespace]["class"][a_class.class_name]["fields"] =
+          a_class.fields;
+      j[a_class.its_namespace]["class"][a_class.class_name]["methods"] =
+          json::object();
+      for (auto method : a_class.methods) {
+        j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+         [method.signature] = json::object();
+        j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+         [method.signature]["function_body"] = json::object();
+        j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+         [method.signature]["parameters"] = json::array();
+        j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+         [method.signature]["return_type"] = json::object();
+      }
+      return j;
+    }
+  }
+}
+
+json ClassesAndFunctions::get_j(std::string class_name, std::string signature) {
+  json j;
+  if (class_name != "class") {
+    for (auto a_class : classes) {
+      if (a_class.class_name == class_name) {
+        bool b = 0;
+        if (b == 0) {
+          for (auto constructor : a_class.constructors) {
+            if (constructor.signature == signature) {
+              b = 1;
+              j[a_class.its_namespace] = json::object();
+              j[a_class.its_namespace]["class"] = json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name] =
+                  json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name]
+               ["constructor"] = json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name]
+               ["constructor"][constructor.signature] = json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name]
+               ["constructor"][constructor.signature]["function_body"] =
+                   json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name]
+               ["constructor"][constructor.signature]["function_body"] =
+                   constructor.function_body;
+              j[a_class.its_namespace]["class"][a_class.class_name]
+               ["constructor"][constructor.signature]["parameters"] =
+                   json::array();
+              j[a_class.its_namespace]["class"][a_class.class_name]
+               ["constructor"][constructor.signature]["parameters"] =
+                   constructor.parameters;
+              break;
+            }
+          }
+        } else {
+          break;
+        }
+        if (b == 0) {
+          if (a_class.destructor.signature == signature) {
+            b = 1;
+            j[a_class.its_namespace] = json::object();
+            j[a_class.its_namespace]["class"] = json::object();
+            j[a_class.its_namespace]["class"][a_class.class_name] =
+                json::object();
+            j[a_class.its_namespace]["class"][a_class.class_name]
+             ["destructor"] = json::object();
+            j[a_class.its_namespace]["class"][a_class.class_name]["destructor"]
+             ["function_body"] = json::object();
+            j[a_class.its_namespace]["class"][a_class.class_name]["destructor"]
+             ["function_body"] = a_class.destructor.function_body;
+            j[a_class.its_namespace]["class"][a_class.class_name]["destructor"]
+             ["signature"] = json::object();
+            j[a_class.its_namespace]["class"][a_class.class_name]["destructor"]
+             ["signature"] = a_class.destructor.signature;
+          }
+        } else {
+          break;
+        }
+        if (b == 0) {
+          for (auto method : a_class.methods) {
+            if (method.signature == signature) {
+              j[a_class.its_namespace] = json::object();
+              j[a_class.its_namespace]["class"] = json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name] =
+                  json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name]["methods"] =
+                  json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+               [method.signature] = json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+               [method.signature]["function_body"] = json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+               [method.signature]["function_body"] = method.function_body;
+              j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+               [method.signature]["parameters"] = json::array();
+              j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+               [method.signature]["parameters"] = method.parameters;
+              j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+               [method.signature]["is_template"] = json::object();
+              if (method.is_template == 1) {
+                j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+                 [method.signature]["is_template"] = "true";
+                j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+                 [method.signature]["template_parameters"] = json::array();
+                j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+                 [method.signature]["template_parameters"] =
+                     method.template_parameters;
+                j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+                 [method.signature]["specialization_parameters"] =
+                     json::array();
+                for (auto specialization_parameter :
+                     method.specialization_parameters) {
+                  std::string specialization_parameter_string = "<";
+                  int i = 0;
+                  for (auto specialization_parameter_type :
+                       specialization_parameter) {
+                    if (i == 0) {
+                      specialization_parameter_string =
+                          specialization_parameter_string +
+                          specialization_parameter_type;
+                    } else {
+                      specialization_parameter_string =
+                          specialization_parameter_string + "," +
+                          specialization_parameter_type;
+                    }
+                    i++;
+                  }
+                  specialization_parameter_string =
+                      specialization_parameter_string + ">";
+                  j[a_class.its_namespace]["class"][a_class.class_name]
+                   ["methods"][method.signature]["specialization_parameters"]
+                       .push_back(specialization_parameter_string);
+                }
+              } else {
+                j[a_class.its_namespace]["class"]["methods"][method.signature]
+                 ["is_template"] = "false";
+              }
+              j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+               [method.signature]["return_type"] = json::object();
+              j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+               [method.signature]["return_type"] = method.return_type;
+              break;
+            }
+          }
+        } else {
+          break;
+        }
+      }
+    }
+  } else {
+    for (auto function : functions) {
+      if (function.signature == signature) {
+        j[function.its_namespace] = json::object();
+        j[function.its_namespace]["function"] = json::object();
+        j[function.its_namespace]["function"][function.signature] =
+            json::object();
+        j[function.its_namespace]["function"][function.signature]
+         ["function_body"] = json::object();
+        j[function.its_namespace]["function"][function.signature]
+         ["function_body"] = function.function_body;
+        j[function.its_namespace]["function"][function.signature]
+         ["parameters"] = json::array();
+        j[function.its_namespace]["function"][function.signature]
+         ["parameters"] = function.parameters;
+        j[function.its_namespace]["function"][function.signature]
+         ["is_template"] = json::object();
+        if (function.is_template == 1) {
+          j[function.its_namespace]["function"][function.signature]
+           ["is_template"] = "true";
+          j[function.its_namespace]["function"][function.signature]
+           ["template_parameters"] = json::array();
+          j[function.its_namespace]["function"][function.signature]
+           ["template_parameters"] = function.template_parameters;
+          j[function.its_namespace]["function"][function.signature]
+           ["specialization_parameters"] = json::array();
+          for (auto specialization_parameter :
+               function.specialization_parameters) {
+            std::string specialization_parameter_string = "<";
+            int i = 0;
+            for (auto specialization_parameter_type :
+                 specialization_parameter) {
+              if (i == 0) {
+                specialization_parameter_string =
+                    specialization_parameter_string +
+                    specialization_parameter_type;
+              } else {
+                specialization_parameter_string =
+                    specialization_parameter_string + "," +
+                    specialization_parameter_type;
+              }
+              i++;
+            }
+            specialization_parameter_string =
+                specialization_parameter_string + ">";
+            j[function.its_namespace]["function"][function.signature]
+             ["specialization_parameters"]
+                 .push_back(specialization_parameter_string);
+          }
+        } else {
+          j[function.its_namespace]["function"][function.signature]
+           ["is_template"] = "false";
+        }
+        j[function.its_namespace]["function"][function.signature]
+         ["return_type"] = json::object();
+        j[function.its_namespace]["function"][function.signature]
+         ["return_type"] = function.return_type;
+        break;
+      }
+    }
+  }
+  return j;
 }

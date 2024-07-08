@@ -1,4 +1,5 @@
 #pragma once
+#include "nlohmann/json.hpp"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -18,6 +19,7 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+using json = nlohmann::json;
 using namespace clang;
 using namespace clang::tooling;
 using namespace llvm;
@@ -89,6 +91,8 @@ struct Class {
   std::vector<Application> applications;
 };
 
+void update_applications(std::vector<Application> &applications);
+
 class ClassesAndFunctions {
   std::vector<Class> classes;
   std::vector<Function> functions;
@@ -105,12 +109,17 @@ public:
   std::vector<std::string> get_constructors(std::string class_name);
   std::string get_destructor(std::string class_name);
   bool has_function(std::string class_name, std::string signature);
-  bool is_function_template(std::string class_name, std::string signature);
   void push_back_function(Function function);
   void push_back_constructor(std::string class_name, Constructor constructor);
   void push_back_destructor(std::string class_name, Destructor destructor);
   void push_back_method(std::string class_name, Method method);
   void cout();
+  void update_all_applications();
+  std::vector<Application> get_applications(std::string class_name,
+                                            std::string signature);
+  json get_simple_class(std::string class_name);
+  void get_all_applications(std::vector<Application> *applications);
+  json get_j(std::string class_name, std::string signature);
 };
 
 class StmtVarFunctionVisitor
