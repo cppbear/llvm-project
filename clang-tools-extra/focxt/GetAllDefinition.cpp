@@ -1804,8 +1804,8 @@ json ClassesAndFunctions::get_j(std::string class_name, std::string signature) {
                        .push_back(specialization_parameter_string);
                 }
               } else {
-                j[a_class.its_namespace]["class"]["methods"][method.signature]
-                 ["is_template"] = "false";
+                j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
+                 [method.signature]["is_template"] = "false";
               }
               j[a_class.its_namespace]["class"][a_class.class_name]["methods"]
                [method.signature]["return_type"] = json::object();

@@ -91,9 +91,11 @@ void FileContext::get_test_macros() {
         line.find(")") != std::string::npos) {
       key = line.substr(line.find_first_of(',') + 1,
                         line.find_first_of(')') - line.find_first_of(',') - 1);
-      key = key.substr(key.find_first_not_of(' '),
-                       key.find_last_of(' ') - key.find_first_not_of(' '));
-      is_inside_test_function = true;
+      if (key != "") {
+        key = key.substr(key.find_first_not_of(' '),
+                         key.find_last_of(' ') - key.find_first_not_of(' '));
+        is_inside_test_function = true;
+      }
     }
     if (is_inside_test_function) {
       if (n == 0 && line.find('{') == std::string::npos) {
