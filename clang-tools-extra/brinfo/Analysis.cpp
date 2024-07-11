@@ -103,6 +103,7 @@ void Analysis::setSignature() {
   }
   Signature += ")";
   DEBUG_PRINT("Signature: " << Signature);
+  // outs() << "Signature: " << Signature << "\n";
 }
 
 void Analysis::extractCondChains() {
@@ -327,10 +328,14 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
     BaseCond *Condition = BlkCond.Condition;
     bool Flag = BlkCond.Flag;
     bool InLoop = BlkCond.InLoop;
+    vector<unsigned> LoopBlks = BlkCond.LoopBlks;
     unsigned ID = Blk->getBlockID();
 
     DEBUG_PRINT("Block: " << ID << " Parent: " << Parent);
     // DEBUG_EXEC(dumpBlkChain());
+
+    if (ID == 43)
+      int A = 0;
 
     if (ColorOfBlk[ID] == 0)
       ColorOfBlk[ID] = 1;
@@ -351,6 +356,8 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
       if (binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
         DEBUG_PRINT("Loop detected at Block " << Blk->getBlockID() << " in "
                                               << Signature);
+        if (Blk->getBlockID() == 44)
+          int A = 0;
         DEBUG_EXEC(unsigned I = 0; for (const CFGBlock *Blk
                                         : Path) {
           if (I++ > 0)
@@ -364,16 +371,23 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
               if (LoopInner[Blk->getBlockID()].find(Adj->getBlockID()) !=
                   LoopInner[Blk->getBlockID()].end())
                 continue;
-              Stack.push({Parent, Adj, Condition, Flag, true});
+              outs() << "Stack push " << Adj->getBlockID() << "\n";
+              vector<unsigned> Loop = {};
+              for (const CFGBlock *Blk : Path) {
+                Loop.push_back(Blk->getBlockID());
+              }
+              Stack.push({Parent, Adj, Condition, Flag, true, Loop});
               Traverse = true;
             }
           }
         }
+        //FIXME: consider remove this
         if (!Traverse && InLoop) {
           unsigned PathSize = Path.size();
           for (unsigned I = PathSize - 1; I > 0; --I) {
             const CFGBlock *Succ = Path[I];
             const CFGBlock *Pred = Path[I - 1];
+            outs() << "Clear Block " << Succ->getBlockID() << "\n";
             CondChainForBlk[Succ->getBlockID()] = {}; // clear
             bool IsSucc = isSucc(Pred, Succ);
             if (!IsSucc) {
@@ -398,7 +412,8 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
     if (Terminator) {
       switch (Terminator->getStmtClass()) {
       default:
-        errs() << "Unhandled Terminator: " << Terminator->getStmtClassName() << "\n";
+        errs() << "Unhandled Terminator: " << Terminator->getStmtClassName()
+               << "\n";
         break;
       case Stmt::ConditionalOperatorClass:
       case Stmt::BinaryOperatorClass:
@@ -411,16 +426,16 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
         const CFGBlock::AdjacentBlock *Adj = Blk->succ_begin();
         if (Cond) {
           if (Adj->isReachable()) {
-            Stack.push({ID, *Adj, Cond, true, InLoop});
+            Stack.push({ID, *Adj, Cond, true, InLoop, LoopBlks});
           }
           if (Blk->succ_size() == 2) {
             ++Adj;
             if (Adj->isReachable()) {
-              Stack.push({ID, *Adj, Cond, false, InLoop});
+              Stack.push({ID, *Adj, Cond, false, InLoop, LoopBlks});
             }
           }
         } else if (Adj->isReachable()) {
-          Stack.push({ID, *Adj, nullptr, false, InLoop});
+          Stack.push({ID, *Adj, nullptr, false, InLoop, LoopBlks});
         }
         break;
       }
@@ -444,7 +459,7 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
               Cond = new CaseCond(cast<Expr>(InnerCond)->IgnoreParenImpCasts(),
                                   Case);
             }
-            Stack.push({ID, Adj, Cond, true, InLoop});
+            Stack.push({ID, Adj, Cond, true, InLoop, LoopBlks});
           } else {
             // Default case
             assert(Label->getStmtClass() == Stmt::DefaultStmtClass);
@@ -456,7 +471,7 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
           if (InnerCond) {
             Cond = new DefaultCond(InnerCond, Cases);
           }
-          Stack.push({ID, DefaultBlk, Cond, false, InLoop});
+          Stack.push({ID, DefaultBlk, Cond, false, InLoop, LoopBlks});
         }
         break;
       }
@@ -472,16 +487,19 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
         const CFGBlock::AdjacentBlock *Adj = Blk->succ_begin();
         if (InnerCond) {
           if (Adj->isReachable()) {
-            Stack.push({ID, *Adj, Cond, true, InLoop});
+            outs() << "Stack push " << (*Adj)->getBlockID() << "\n";
+            Stack.push({ID, *Adj, Cond, true, InLoop, LoopBlks});
           }
           if (Blk->succ_size() == 2) {
             ++Adj;
             if (Adj->isReachable()) {
-              Stack.push({ID, *Adj, Cond, false, InLoop});
+              outs() << "Stack push " << (*Adj)->getBlockID() << "\n";
+              Stack.push({ID, *Adj, Cond, false, InLoop, LoopBlks});
             }
           }
         } else if (Adj->isReachable()) {
-          Stack.push({ID, *Adj, nullptr, false, InLoop});
+          outs() << "Stack push " << (*Adj)->getBlockID() << "\n";
+          Stack.push({ID, *Adj, nullptr, false, InLoop, LoopBlks});
         }
         break;
       }
@@ -489,14 +507,15 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
       case Stmt::ContinueStmtClass:
       case Stmt::GotoStmtClass: {
         if (Blk->succ_begin()->isReachable()) {
-          Stack.push({ID, *Blk->succ_begin(), nullptr, false, InLoop});
+          Stack.push(
+              {ID, *Blk->succ_begin(), nullptr, false, InLoop, LoopBlks});
         }
         break;
       }
       }
     } else if (Blk->succ_size() == 1) {
       if (Blk->succ_begin()->isReachable()) {
-        Stack.push({ID, *Blk->succ_begin(), nullptr, false, InLoop});
+        Stack.push({ID, *Blk->succ_begin(), nullptr, false, InLoop, LoopBlks});
       }
     } else if (Blk->getBlockID() == Cfg->getExit().getBlockID()) {
       // Exit Block

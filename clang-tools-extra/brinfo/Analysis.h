@@ -15,6 +15,7 @@ struct BlkCond {
   BaseCond *Condition = nullptr;
   bool Flag = false;
   bool InLoop = false;
+  vector<unsigned> LoopBlks = {};
 };
 
 class Analysis {
