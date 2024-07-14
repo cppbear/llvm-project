@@ -232,45 +232,86 @@ public:
         }
         global_var.global_var = std::string(srcText_str);
         QualType qualType = varDecl->getType();
-        if (qualType->isReferenceType()) {
-          qualType = qualType.getNonReferenceType();
-        }
-        qualType = qualType.getUnqualifiedType();
-        qualType = qualType.getCanonicalType();
+        // if (qualType->isReferenceType()) {
+        //   qualType = qualType.getNonReferenceType();
+        // }
+        // qualType = qualType.getUnqualifiedType();
+        // qualType = qualType.getNonReferenceType();
+        // qualType = qualType.getCanonicalType();
         // const clang::Type *typePtr = qualType.getTypePtr();
         // while (const TypedefType *typedefType =
         //            dyn_cast<TypedefType>(typePtr)) {
         //   const TypedefNameDecl *typedefDecl = typedefType->getDecl();
         //   qualType = typedefDecl->getUnderlyingType();
         // }
-        std::string class_name = qualType.getAsString();
-        if (gac_classes_and_functions.has_class(class_name)) {
-          std::vector<std::string> need_constructors =
-              gac_classes_and_functions.get_constructors(class_name);
-          for (int i = 0; i < need_constructors.size(); i++) {
-            Application application;
-            application.class_name = class_name;
-            application.signature = need_constructors[i];
-            applications.push_back(application);
-          }
-          std::string need_destructor =
-              gac_classes_and_functions.get_destructor(class_name);
-          if (need_destructor != "class") {
-            Application application;
-            application.class_name = class_name;
-            application.signature = need_destructor;
-            applications.push_back(application);
+        std::vector<std::string> types =
+            gac_classes_and_functions.get_application_classes(
+                qualType.getAsString());
+        for (auto type : types) {
+          Application application;
+          application.class_name = type;
+          application.signature = "";
+          applications.push_back(application);
+          if (gac_classes_and_functions.has_class(type)) {
+            std::vector<std::string> need_constructors =
+                gac_classes_and_functions.get_constructors(type);
+            for (int i = 0; i < need_constructors.size(); i++) {
+              Application application;
+              application.class_name = type;
+              application.signature = need_constructors[i];
+              applications.push_back(application);
+            }
+            std::string need_destructor =
+                gac_classes_and_functions.get_destructor(type);
+            if (need_destructor != "class") {
+              Application application;
+              application.class_name = type;
+              application.signature = need_destructor;
+              applications.push_back(application);
+            }
           }
         }
+        // Application application;
+        // application.class_name = class_name;
+        // application.signature = "";
+        // applications.push_back(application);
+        // if (gac_classes_and_functions.has_class(class_name)) {
+        //   std::vector<std::string> need_constructors =
+        //       gac_classes_and_functions.get_constructors(class_name);
+        //   for (int i = 0; i < need_constructors.size(); i++) {
+        //     Application application;
+        //     application.class_name = class_name;
+        //     application.signature = need_constructors[i];
+        //     applications.push_back(application);
+        //   }
+        //   std::string need_destructor =
+        //       gac_classes_and_functions.get_destructor(class_name);
+        //   if (need_destructor != "class") {
+        //     Application application;
+        //     application.class_name = class_name;
+        //     application.signature = need_destructor;
+        //     applications.push_back(application);
+        //   }
+        // }
         if (varDecl->hasInit()) {
           const Expr *Expr = varDecl->getInit();
           if (Expr) {
             if (const CallExpr *Call = dyn_cast<CallExpr>(Expr)) {
               const FunctionDecl *Callee = Call->getDirectCallee();
               if (Callee) {
+                Callee = Callee->getCanonicalDecl();
+                if (Callee->getPrimaryTemplate()) {
+                  Callee = Callee->getPrimaryTemplate()->getTemplatedDecl();
+                }
+                // Callee->dump();
+                if (Callee->getTemplateInstantiationPattern()) {
+                  Callee = Callee->getTemplateInstantiationPattern();
+                  // InstantiatedCallee->dump();
+                }
                 if (Callee->isCXXClassMember()) {
                   const CXXRecordDecl *ParentClass =
-                      dyn_cast<CXXRecordDecl>(Callee->getParent());
+                      dyn_cast<CXXRecordDecl>(Callee->getParent())
+                          ->getCanonicalDecl();
                   std::string class_name = ParentClass->getNameAsString();
                   std::string function_name = Callee->getNameAsString();
                   std::string signature = get_signature(Callee);
@@ -369,24 +410,59 @@ public:
         }
         // std::cout << alias.alias_name << " " << alias.base_name << std::endl;
         gac_alias.push_back(alias);
-        if (gac_classes_and_functions.has_class(alias.base_name)) {
-          std::vector<std::string> need_constructors =
-              gac_classes_and_functions.get_constructors(alias.base_name);
-          for (int i = 0; i < need_constructors.size(); i++) {
-            Application application;
-            application.class_name = alias.base_name;
-            application.signature = need_constructors[i];
-            gac_applications.push_back(application);
-          }
-          std::string need_destructor =
-              gac_classes_and_functions.get_destructor(alias.base_name);
-          if (need_destructor != "class") {
-            Application application;
-            application.class_name = alias.base_name;
-            application.signature = need_destructor;
-            gac_applications.push_back(application);
+        QualType qualType = TypeAlias->getUnderlyingType();
+        // qualType = qualType.getUnqualifiedType();
+        // qualType = qualType.getNonReferenceType();
+        // qualType = qualType.getCanonicalType();
+        std::vector<std::string> types =
+            gac_classes_and_functions.get_application_classes(
+                qualType.getAsString());
+        for (auto type : types) {
+          Application application;
+          application.class_name = type;
+          application.signature = "";
+          gac_applications.push_back(application);
+          if (gac_classes_and_functions.has_class(type)) {
+            std::vector<std::string> need_constructors =
+                gac_classes_and_functions.get_constructors(type);
+            for (int i = 0; i < need_constructors.size(); i++) {
+              Application application;
+              application.class_name = type;
+              application.signature = need_constructors[i];
+              gac_applications.push_back(application);
+            }
+            std::string need_destructor =
+                gac_classes_and_functions.get_destructor(type);
+            if (need_destructor != "class") {
+              Application application;
+              application.class_name = type;
+              application.signature = need_destructor;
+              gac_applications.push_back(application);
+            }
           }
         }
+        // Application application;
+        // application.class_name = class_name;
+        // application.signature = "";
+        // gac_applications.push_back(application);
+        // if (gac_classes_and_functions.has_class(class_name)) {
+        //   std::vector<std::string> need_constructors =
+        //       gac_classes_and_functions.get_constructors(class_name);
+        //   for (int i = 0; i < need_constructors.size(); i++) {
+        //     Application application;
+        //     application.class_name = class_name;
+        //     application.signature = need_constructors[i];
+        //     gac_applications.push_back(application);
+        //   }
+        //   std::string need_destructor =
+        //       gac_classes_and_functions.get_destructor(class_name);
+        //   if (need_destructor != "class") {
+        //     Application application;
+        //     application.class_name = class_name;
+        //     application.signature = need_destructor;
+        //     gac_applications.push_back(application);
+        //   }
+        // }
       }
     }
     return true;
@@ -399,9 +475,18 @@ public:
       clang::PresumedLoc presumedLoc = SM.getPresumedLoc(loc);
       std::string file_path = presumedLoc.getFilename();
       if (file_path == gac_file_path) {
-        if (!isa<CXXMethodDecl>(Func)) {
-          std::string function_name = Func->getNameAsString();
-          std::string signature = get_signature(Func);
+        auto the_Func = Func->getCanonicalDecl();
+        if (the_Func->getPrimaryTemplate()) {
+          the_Func = the_Func->getPrimaryTemplate()->getTemplatedDecl();
+        }
+        // Callee->dump();
+        if (the_Func->getTemplateInstantiationPattern()) {
+          the_Func = the_Func->getTemplateInstantiationPattern();
+          // InstantiatedCallee->dump();
+        }
+        if (!isa<CXXMethodDecl>(the_Func)) {
+          std::string function_name = the_Func->getNameAsString();
+          std::string signature = get_signature(the_Func);
           if (gac_classes_and_functions.has_function("class", signature)) {
             InFileFunction in_file_function;
             // std::string function_name;
@@ -420,14 +505,15 @@ public:
           }
         } else {
           const CXXRecordDecl *ParentClass =
-              dyn_cast<CXXRecordDecl>(Func->getParent());
+              dyn_cast<CXXRecordDecl>(the_Func->getParent())
+                  ->getCanonicalDecl();
           std::string class_name = ParentClass->getNameAsString();
           if (gac_classes_and_functions.has_class(class_name)) {
             // std::cout << "Class Declaration " << class_name <<
             // std::endl;
-            std::string signature = get_signature(Func);
+            std::string signature = get_signature(the_Func);
             if (gac_classes_and_functions.has_function(class_name, signature)) {
-              if (isa<CXXConstructorDecl>(Func)) {
+              if (isa<CXXConstructorDecl>(the_Func)) {
                 // std::cout << "Constructor Declaration " << class_name
                 //           << std::endl;
                 // std::string signature;
@@ -439,7 +525,7 @@ public:
                 in_file_function.function_name = class_name;
                 in_file_function.signature = signature;
                 gac_in_file_functions.push_back(in_file_function);
-              } else if (isa<CXXDestructorDecl>(Func)) {
+              } else if (isa<CXXDestructorDecl>(the_Func)) {
                 // std::string signature;
                 // std::string function_body;
                 // std::vector<Application> applications;
@@ -762,6 +848,11 @@ json FileContext::get_j(bool test_flag) {
     j[file_path][class_function]["focal"][function.signature] = json::object();
     j[file_path][class_function]["focal"][function.signature].merge_patch(
         file_j);
+    j[file_path][class_function]["focal"][function.signature]["function_body"] =
+        json::object();
+    j[file_path][class_function]["focal"][function.signature]["function_body"] =
+        gac_classes_and_functions.get_function_body(function.class_name,
+                                                    function.signature);
     std::vector<Application> need_applications = applications;
     Application function_application;
     function_application.class_name = function.class_name;
@@ -794,9 +885,11 @@ json FileContext::get_j(bool test_flag) {
                   application.class_name));
         }
       }
-      j[file_path][class_function]["focal"][function.signature].merge_patch(
-          gac_classes_and_functions.get_j(application.class_name,
-                                          application.signature));
+      if (application.signature != "") {
+        j[file_path][class_function]["focal"][function.signature].merge_patch(
+            gac_classes_and_functions.get_j(application.class_name,
+                                            application.signature));
+      }
     }
   }
   return j;

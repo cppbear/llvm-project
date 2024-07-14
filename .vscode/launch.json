@@ -9,18 +9,24 @@
             "request": "launch",
             "name": "debug focxt",
             "program": "${workspaceFolder}/build/bin/focxt",
-            // "args": [
-            //     "--project",
-            //     "/home/abezbm/cmake_example",
-            //     "--build",
-            //     "/home/abezbm/cmake_example/build",
-            // ],
             "args": [
                 "--project",
-                "/home/abezbm/jsoncpp",
+                "/home/abezbm/cmake_example",
                 "--build",
-                "/home/abezbm/jsoncpp/build",
+                "/home/abezbm/cmake_example/build",
             ],
+            // "args": [
+            //     "--project",
+            //     "/home/abezbm/bcrypt-1.1",
+            //     "--build",
+            //     "/home/abezbm/bcrypt-1.1/build",
+            // ],
+            // "args": [
+            //     "--project",
+            //     "/home/abezbm/jsoncpp",
+            //     "--build",
+            //     "/home/abezbm/jsoncpp/build",
+            // ],
             "cwd": "${workspaceFolder}"
         },
         {
