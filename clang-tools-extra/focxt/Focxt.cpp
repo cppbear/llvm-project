@@ -1,4 +1,4 @@
-#include "CoutContext.h"
+// #include "CoutContext.h"
 #include "GetAllContext.h"
 #include "nlohmann/json.hpp"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
@@ -126,7 +126,7 @@ int main(int argc, const char **argv) {
   get_classes_and_functions.get_definitions();
   ClassesAndFunctions classes_and_functions =
       get_classes_and_functions.get_classes_and_functions();
-  std::string output_path = RealProjectPath + "/output.txt";
+  // std::string output_path = RealProjectPath + "/output.txt";
   // freopen(output_path.c_str(), "w", stdout);
   // classes_and_functions.cout();
   // freopen("/dev/tty", "w", stdout);

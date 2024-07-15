@@ -370,7 +370,8 @@ void FileContext::get_global_vars() {
   Finder.addMatcher(globalvarMatcher, &Printer);
   Tool.run(newFrontendActionFactory(&Finder).get());
   global_vars = Printer.get_vars();
-  std::vector<Application> global_vars_applications;
+  std::vector<Application> global_vars_applications =
+      Printer.get_applications();
   for (auto application : global_vars_applications) {
     applications.push_back(application);
   }
@@ -841,8 +842,12 @@ json FileContext::get_j(bool test_flag) {
   json file_j = get_file_j();
   j[file_path] = json::object();
   for (auto function : functions) {
-    std::string class_function =
-        function.class_name + "::" + function.function_name;
+    std::string class_function;
+    if (function.class_name != "class") {
+      class_function = function.class_name + "::" + function.function_name;
+    } else {
+      class_function = function.function_name;
+    }
     if (j[file_path].find(class_function) == j[file_path].end()) {
       j[file_path][class_function] = json::object();
       j[file_path][class_function]["focal"] = json::object();

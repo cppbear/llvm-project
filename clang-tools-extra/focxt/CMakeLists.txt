@@ -11,7 +11,7 @@ Focxt.cpp
 GetAllDefinition.cpp
 GetSignature.cpp
 GetAllContext.cpp
-CoutContext.cpp
+# CoutContext.cpp
   )
 
 target_link_libraries(focxt
