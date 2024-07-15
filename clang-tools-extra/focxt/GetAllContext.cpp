@@ -248,11 +248,11 @@ public:
             gac_classes_and_functions.get_application_classes(
                 qualType.getAsString());
         for (auto type : types) {
-          Application application;
-          application.class_name = type;
-          application.signature = "";
-          applications.push_back(application);
           if (gac_classes_and_functions.has_class(type)) {
+            Application application;
+            application.class_name = type;
+            application.signature = "";
+            applications.push_back(application);
             std::vector<std::string> need_constructors =
                 gac_classes_and_functions.get_constructors(type);
             for (int i = 0; i < need_constructors.size(); i++) {
@@ -410,19 +410,18 @@ public:
         }
         // std::cout << alias.alias_name << " " << alias.base_name << std::endl;
         gac_alias.push_back(alias);
-        QualType qualType = TypeAlias->getUnderlyingType();
+        // QualType qualType = TypeAlias->getUnderlyingType();
         // qualType = qualType.getUnqualifiedType();
         // qualType = qualType.getNonReferenceType();
         // qualType = qualType.getCanonicalType();
         std::vector<std::string> types =
-            gac_classes_and_functions.get_application_classes(
-                qualType.getAsString());
+            gac_classes_and_functions.get_application_classes(alias.base_name);
         for (auto type : types) {
-          Application application;
-          application.class_name = type;
-          application.signature = "";
-          gac_applications.push_back(application);
           if (gac_classes_and_functions.has_class(type)) {
+            Application application;
+            application.class_name = type;
+            application.signature = "";
+            gac_applications.push_back(application);
             std::vector<std::string> need_constructors =
                 gac_classes_and_functions.get_constructors(type);
             for (int i = 0; i < need_constructors.size(); i++) {
@@ -475,18 +474,19 @@ public:
       clang::PresumedLoc presumedLoc = SM.getPresumedLoc(loc);
       std::string file_path = presumedLoc.getFilename();
       if (file_path == gac_file_path) {
-        auto the_Func = Func->getCanonicalDecl();
-        if (the_Func->getPrimaryTemplate()) {
-          the_Func = the_Func->getPrimaryTemplate()->getTemplatedDecl();
+        auto CanonicalFunc = Func->getCanonicalDecl();
+        if (CanonicalFunc->getPrimaryTemplate()) {
+          CanonicalFunc =
+              CanonicalFunc->getPrimaryTemplate()->getTemplatedDecl();
         }
         // Callee->dump();
-        if (the_Func->getTemplateInstantiationPattern()) {
-          the_Func = the_Func->getTemplateInstantiationPattern();
+        if (CanonicalFunc->getTemplateInstantiationPattern()) {
+          CanonicalFunc = CanonicalFunc->getTemplateInstantiationPattern();
           // InstantiatedCallee->dump();
         }
-        if (!isa<CXXMethodDecl>(the_Func)) {
-          std::string function_name = the_Func->getNameAsString();
-          std::string signature = get_signature(the_Func);
+        if (!isa<CXXMethodDecl>(CanonicalFunc)) {
+          std::string function_name = CanonicalFunc->getNameAsString();
+          std::string signature = get_signature(CanonicalFunc);
           if (gac_classes_and_functions.has_function("class", signature)) {
             InFileFunction in_file_function;
             // std::string function_name;
@@ -505,15 +505,15 @@ public:
           }
         } else {
           const CXXRecordDecl *ParentClass =
-              dyn_cast<CXXRecordDecl>(the_Func->getParent())
+              dyn_cast<CXXRecordDecl>(CanonicalFunc->getParent())
                   ->getCanonicalDecl();
           std::string class_name = ParentClass->getNameAsString();
           if (gac_classes_and_functions.has_class(class_name)) {
             // std::cout << "Class Declaration " << class_name <<
             // std::endl;
-            std::string signature = get_signature(the_Func);
+            std::string signature = get_signature(CanonicalFunc);
             if (gac_classes_and_functions.has_function(class_name, signature)) {
-              if (isa<CXXConstructorDecl>(the_Func)) {
+              if (isa<CXXConstructorDecl>(CanonicalFunc)) {
                 // std::cout << "Constructor Declaration " << class_name
                 //           << std::endl;
                 // std::string signature;
@@ -525,7 +525,7 @@ public:
                 in_file_function.function_name = class_name;
                 in_file_function.signature = signature;
                 gac_in_file_functions.push_back(in_file_function);
-              } else if (isa<CXXDestructorDecl>(the_Func)) {
+              } else if (isa<CXXDestructorDecl>(CanonicalFunc)) {
                 // std::string signature;
                 // std::string function_body;
                 // std::vector<Application> applications;

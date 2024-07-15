@@ -76,9 +76,16 @@ void get_all_files(std::string path, std::vector<std::string> *file_paths) {
           directorty_entry.find("/llm_tests") == std::string::npos &&
           directorty_entry.find("/llm_coverage") == std::string::npos
           // &&
-          // directorty_entry.find("test") == std::string::npos
-          && directorty_entry.find("/doc") == std::string::npos &&
-          directorty_entry.find("/example") == std::string::npos) {
+          // directorty_entry.find("/test") == std::string::npos &&
+          // directorty_entry.find("/doc") == std::string::npos &&
+          // directorty_entry.find("/example") == std::string::npos &&
+          // directorty_entry.find("/go") == std::string::npos &&
+          // directorty_entry.find("/java") == std::string::npos &&
+          // directorty_entry.find("/js") == std::string::npos &&
+          // directorty_entry.find("/python") == std::string::npos &&
+          // directorty_entry.find("/research") == std::string::npos &&
+          // directorty_entry.find("/scripts") == std::string::npos
+      ) {
         get_all_files(entry.path(), file_paths);
       }
     }
@@ -119,7 +126,10 @@ int main(int argc, const char **argv) {
   get_classes_and_functions.get_definitions();
   ClassesAndFunctions classes_and_functions =
       get_classes_and_functions.get_classes_and_functions();
+  std::string output_path = RealProjectPath + "/output.txt";
+  // freopen(output_path.c_str(), "w", stdout);
   // classes_and_functions.cout();
+  // freopen("/dev/tty", "w", stdout);
   GetFileContext get_file_context(RealProjectPath, RealBuildPath, file_paths,
                                   FocxtCategory, classes_and_functions);
   get_file_context.get_all_file_contexts();

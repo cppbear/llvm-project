@@ -427,7 +427,8 @@ std::vector<std::string>
 ClassesAndFunctions::get_application_classes(std::string type) {
   std::vector<std::string> application_classes;
   for (auto a_class : classes) {
-    if (type.find(a_class.class_name) != std::string::npos) {
+    if (a_class.class_name != "" &&
+        type.find(a_class.class_name) != std::string::npos) {
       application_classes.push_back(a_class.class_name);
     }
   }
@@ -655,6 +656,17 @@ public:
   explicit FindClassesAndFunctionsVisitor(ASTContext *Context)
       : Context(Context) {}
 
+  // bool VisitTypeDecl(TypeDecl *Declaration) {
+  //   clang::SourceLocation loc = Declaration->getLocation();
+  //   clang::SourceManager &SM = Context->getSourceManager();
+  //   clang::PresumedLoc presumedLoc = SM.getPresumedLoc(loc);
+  //   std::string file_path = presumedLoc.getFilename();
+  //   if (file_path.find(gad_project_path) != std::string::npos) {
+  //     Declaration->dump();
+  //   }
+  //   return true;
+  // }
+
   bool VisitClassTemplateDecl(ClassTemplateDecl *Declaration) {
     if (Declaration->isThisDeclarationADefinition()) {
       clang::SourceLocation loc = Declaration->getLocation();
@@ -665,19 +677,17 @@ public:
         // std::cout << Declaration->getNameAsString() << std::endl;
         // Declaration->dump();
         // std::cout << std::endl;
-        auto ClassTemplateDeclaration = Declaration->getCanonicalDecl();
+        auto CanonicalDeclaration = Declaration->getCanonicalDecl();
         // auto canonical_declaration = Declaration->getCanonicalDecl();
         // canonical_declaration->dump();
         // Declaration->dump();
-        std::string class_name = ClassTemplateDeclaration->getNameAsString();
+        std::string class_name = CanonicalDeclaration->getNameAsString();
         if (!gad_classes_and_functions.has_class(class_name)) {
-          CXXRecordDecl *RecordDecl =
-              ClassTemplateDeclaration->getTemplatedDecl()->getCanonicalDecl();
+          CXXRecordDecl *RecordDecl = Declaration->getTemplatedDecl();
           Class a_class;
           a_class.class_name = class_name;
           a_class.is_template = 1;
-          auto template_parameters =
-              ClassTemplateDeclaration->getTemplateParameters();
+          auto template_parameters = Declaration->getTemplateParameters();
           for (auto template_parameter : template_parameters->asArray()) {
             a_class.template_parameters.push_back(
                 template_parameter->getNameAsString());
@@ -708,7 +718,7 @@ public:
             application.signature = "";
             a_class.applications.push_back(application);
           }
-          const DeclContext *context = RecordDecl->getDeclContext();
+          const DeclContext *context = Declaration->getDeclContext();
           bool b = 0;
           while (context) {
             if (const NamespaceDecl *namespaceDecl =
@@ -726,12 +736,10 @@ public:
           if (b == 0) {
             a_class.its_namespace = "";
           }
-          int i = 0;
           for (const auto *decl : RecordDecl->decls()) {
-            if (i == 0) {
-              i++;
-              continue;
-            }
+            // if (decl->getCanonicalDecl() == CanonicalDeclaration) {
+            //   continue;
+            // }
             // if (const CXXRecordDecl *Record = dyn_cast<CXXRecordDecl>(decl))
             // {
             //   if (i == 0) {
@@ -768,15 +776,14 @@ public:
               //   field_type =
               //       field_type.substr(field_type.find_last_of(" ") + 1);
               // }
-              QualType qualType = Field->getType();
+              // QualType qualType = Field->getType();
               // // if (qualType->isReferenceType()) {
               // //   qualType = qualType.getNonReferenceType();
               // // }
               // qualType = qualType.getUnqualifiedType();
               // qualType = qualType.getNonReferenceType();
               std::vector<std::string> types =
-                  gad_classes_and_functions.get_application_classes(
-                      qualType.getAsString());
+                  gad_classes_and_functions.get_application_classes(field_type);
               for (auto type : types) {
                 Application application;
                 application.class_name = type;
@@ -843,7 +850,7 @@ public:
               Alias alias;
               alias.alias_name = TypeAlias->getNameAsString();
               alias.base_name = TypeAlias->getUnderlyingType().getAsString();
-              QualType qualType = TypeAlias->getUnderlyingType();
+              // QualType qualType = TypeAlias->getUnderlyingType();
               // if (qualType->isReferenceType()) {
               //   qualType = qualType.getNonReferenceType();
               // }
@@ -853,7 +860,7 @@ public:
               a_class.aliases.push_back(alias);
               std::vector<std::string> types =
                   gad_classes_and_functions.get_application_classes(
-                      qualType.getAsString());
+                      alias.base_name);
               for (auto type : types) {
                 Application application;
                 application.class_name = type;
@@ -886,7 +893,6 @@ public:
               //   }
               // }
             }
-            i++;
           }
           // i = 1;
           // while (i < a_class.fields.size()) {
@@ -925,8 +931,7 @@ public:
           //   std::cout << std::endl;
           gad_classes_and_functions.push_back_class(a_class);
         }
-        for (auto specialization :
-             ClassTemplateDeclaration->specializations()) {
+        for (auto specialization : Declaration->specializations()) {
           std::vector<std::string> specialization_parameter;
           std::vector<std::pair<std::string, std::string>> applications;
           for (unsigned i = 0; i < specialization->getTemplateArgs().size();
@@ -942,7 +947,7 @@ public:
               //   1);
               // }
               specialization_parameter.push_back(type_name);
-              QualType qualType = Arg.getAsType();
+              // QualType qualType = Arg.getAsType();
               // if (qualType->isReferenceType()) {
               //   qualType = qualType.getNonReferenceType();
               // }
@@ -950,8 +955,7 @@ public:
               // qualType = qualType.getNonReferenceType();
               // qualType = qualType.getCanonicalType();
               std::vector<std::string> types =
-                  gad_classes_and_functions.get_application_classes(
-                      qualType.getAsString());
+                  gad_classes_and_functions.get_application_classes(type_name);
               for (auto type : types) {
                 std::pair<std::string, std::string> application;
                 application.first = type;
@@ -975,121 +979,42 @@ public:
     return true;
   }
 
-  bool VisitCXXRecordDecl(CXXRecordDecl *Declaration) {
+  bool VisitRecordDecl(RecordDecl *Declaration) {
     if (Declaration->isThisDeclarationADefinition()) {
+      // Declaration->dump();
       clang::SourceLocation loc = Declaration->getLocation();
       clang::SourceManager &SM = Context->getSourceManager();
       clang::PresumedLoc presumedLoc = SM.getPresumedLoc(loc);
       std::string file_path = presumedLoc.getFilename();
       if (file_path.find(gad_project_path) != std::string::npos) {
-        // std::cout << Declaration->getNameAsString() << std::endl;
-        // Declaration->dump();
-        // std::cout << std::endl;
-        auto CXXRecordDeclaration = Declaration->getCanonicalDecl();
-        // auto canonical_declaration = Declaration->getCanonicalDecl();
-        // canonical_declaration->dump();
-        // Declaration->dump();
-        std::string class_name = CXXRecordDeclaration->getNameAsString();
-        if (!gad_classes_and_functions.has_class(class_name)) {
-          Class a_class;
-          a_class.class_name = class_name;
-          a_class.is_template = 0;
-          if (CXXRecordDeclaration->isClass()) {
-            a_class.record_type = MyRecordType::ClassType;
-          } else if (CXXRecordDeclaration->isStruct()) {
-            a_class.record_type = MyRecordType::StructType;
-          } else if (CXXRecordDeclaration->isUnion()) {
-            a_class.record_type = MyRecordType::UnionType;
-          }
-          // if (RecordDecl->getNumBases() > 0) {
-          //   a_class.base_class =
-          //       RecordDecl->bases_begin()->getType().getAsString();
-          // }
-          for (auto its_base_class : CXXRecordDeclaration->bases()) {
-            a_class.base_class.push_back(
-                its_base_class.getType().getAsString());
-            QualType qualType = its_base_class.getType();
-            // if (qualType->isReferenceType()) {
-            //   qualType = qualType.getNonReferenceType();
+        if (auto CXXDeclaration = dyn_cast<CXXRecordDecl>(Declaration)) {
+          // std::cout << Declaration->getNameAsString() << std::endl;
+          // Declaration->dump();
+          // std::cout << std::endl;
+          auto CanonicalDeclaration = CXXDeclaration->getCanonicalDecl();
+          // auto canonical_declaration = Declaration->getCanonicalDecl();
+          // canonical_declaration->dump();
+          // Declaration->dump();
+          std::string class_name = CanonicalDeclaration->getNameAsString();
+          if (!gad_classes_and_functions.has_class(class_name)) {
+            Class a_class;
+            a_class.class_name = class_name;
+            a_class.is_template = 0;
+            if (CXXDeclaration->isClass()) {
+              a_class.record_type = MyRecordType::ClassType;
+            } else if (CXXDeclaration->isStruct()) {
+              a_class.record_type = MyRecordType::StructType;
+            } else if (CXXDeclaration->isUnion()) {
+              a_class.record_type = MyRecordType::UnionType;
+            }
+            // if (RecordDecl->getNumBases() > 0) {
+            //   a_class.base_class =
+            //       RecordDecl->bases_begin()->getType().getAsString();
             // }
-            // qualType = qualType.getUnqualifiedType();
-            // qualType = qualType.getNonReferenceType();
-            // qualType = qualType.getCanonicalType();
-            std::vector<std::string> types =
-                gad_classes_and_functions.get_application_classes(
-                    qualType.getAsString());
-            for (auto type : types) {
-              Application application;
-              application.class_name = type;
-              application.signature = "";
-              a_class.applications.push_back(application);
-            }
-            // Application application;
-            // application.class_name = get_application_type(qualType);
-            // application.signature = "";
-            // a_class.applications.push_back(application);
-          }
-          const DeclContext *context = CXXRecordDeclaration->getDeclContext();
-          bool b = 0;
-          while (context) {
-            if (const NamespaceDecl *namespaceDecl =
-                    dyn_cast<NamespaceDecl>(context)) {
-              b = 1;
-              if (a_class.its_namespace == "") {
-                a_class.its_namespace = namespaceDecl->getNameAsString();
-              } else {
-                a_class.its_namespace = namespaceDecl->getNameAsString() +
-                                        "::" + a_class.its_namespace;
-              }
-            }
-            context = context->getParent();
-          }
-          if (b == 0) {
-            a_class.its_namespace = "";
-          }
-          int i = 0;
-          for (const auto *decl : CXXRecordDeclaration->decls()) {
-            if (i == 0) {
-              i++;
-              continue;
-            }
-            // if (const CXXRecordDecl *Record = dyn_cast<CXXRecordDecl>(decl))
-            // {
-            //   if (i == 0) {
-            //     continue;
-            //   }
-            //   const SourceManager &sourceManager =
-            //   Context->getSourceManager(); SourceRange srcRange =
-            //   Record->getSourceRange();
-            //   srcRange.setEnd(Lexer::getLocForEndOfToken(
-            //       srcRange.getEnd(), 0, sourceManager,
-            //       Context->getLangOpts()));
-            //   bool Invalid = false;
-            //   StringRef srcText = Lexer::getSourceText(
-            //       CharSourceRange::getTokenRange(srcRange), sourceManager,
-            //       Context->getLangOpts(), &Invalid);
-            //   // std::cout << std::string(srcText) << std::endl;
-            //   std::string srcText_str = std::string(srcText);
-            //   if (srcText_str[srcText_str.length() - 1] == ';') {
-            //     srcText_str.erase(srcText_str.length() - 1);
-            //   }
-            //   // if (Record->isClass()) {
-            //   //   if (srcText.find('{') != std::string::npos) {
-            //   //     srcText_str.erase(srcText_str.find_first_of('{'));
-            //   //   }
-            //   //   a_class.fields.push_back(srcText_str);
-            //   // } else {
-            //   //   a_class.fields.push_back(srcText_str);
-            //   // }
-            //   a_class.fields.push_back(srcText_str);
-            // }
-            if (const FieldDecl *Field = dyn_cast<FieldDecl>(decl)) {
-              std::string field_type = Field->getType().getAsString();
-              // if (field_type.find(" ") != std::string::npos) {
-              //   field_type =
-              //       field_type.substr(field_type.find_last_of(" ") + 1);
-              // }
-              QualType qualType = Field->getType();
+            for (auto its_base_class : CXXDeclaration->bases()) {
+              a_class.base_class.push_back(
+                  its_base_class.getType().getAsString());
+              QualType qualType = its_base_class.getType();
               // if (qualType->isReferenceType()) {
               //   qualType = qualType.getNonReferenceType();
               // }
@@ -1109,144 +1034,488 @@ public:
               // application.class_name = get_application_type(qualType);
               // application.signature = "";
               // a_class.applications.push_back(application);
-              const SourceManager &sourceManager = Context->getSourceManager();
-              SourceRange srcRange = Field->getSourceRange();
-              srcRange.setEnd(Lexer::getLocForEndOfToken(
-                  srcRange.getEnd(), 0, sourceManager, Context->getLangOpts()));
-              bool Invalid = false;
-              StringRef srcText = Lexer::getSourceText(
-                  CharSourceRange::getTokenRange(srcRange), sourceManager,
-                  Context->getLangOpts(), &Invalid);
-              // std::cout << std::string(srcText) << std::endl;
-              std::string srcText_str = std::string(srcText);
-              if (srcText_str[srcText_str.length() - 1] == ';') {
-                srcText_str.erase(srcText_str.length() - 1);
-              }
-              if (srcText_str.find("{") != std::string::npos) {
-                srcText_str.erase(srcText_str.find_first_of("{"),
-                                  srcText_str.find_last_of("}") + 1 -
-                                      srcText_str.find_first_of("{"));
-              }
-              if (srcText_str.find("class") != std::string::npos) {
-                srcText_str.erase(srcText_str.find_first_of("class"), 6);
-              }
-              if (srcText_str.find("struct") != std::string::npos) {
-                srcText_str.erase(srcText_str.find_first_of("struct"), 7);
-              }
-              if (srcText_str.find("enum") != std::string::npos) {
-                srcText_str.erase(srcText_str.find_first_of("enum"), 5);
-              }
-              if (srcText_str.find("union") != std::string::npos) {
-                srcText_str.erase(srcText_str.find_first_of("union"), 6);
-              }
-              a_class.fields.push_back(srcText_str);
             }
-            // else if (const EnumDecl *Enum = dyn_cast<EnumDecl>(decl)) {
-            //   const SourceManager &sourceManager =
-            //   Context->getSourceManager(); SourceRange srcRange =
-            //   Enum->getSourceRange();
-            //   srcRange.setEnd(Lexer::getLocForEndOfToken(
-            //       srcRange.getEnd(), 0, sourceManager,
-            //       Context->getLangOpts()));
-            //   bool Invalid = false;
-            //   StringRef srcText = Lexer::getSourceText(
-            //       CharSourceRange::getTokenRange(srcRange), sourceManager,
-            //       Context->getLangOpts(), &Invalid);
-            //   // std::cout << std::string(srcText) << std::endl;
-            //   std::string srcText_str = std::string(srcText);
-            //   if (srcText_str[srcText_str.length() - 1] == ';') {
-            //     srcText_str.erase(srcText_str.length() - 1);
+            const DeclContext *context = CXXDeclaration->getDeclContext();
+            bool b = 0;
+            while (context) {
+              if (const NamespaceDecl *namespaceDecl =
+                      dyn_cast<NamespaceDecl>(context)) {
+                b = 1;
+                if (a_class.its_namespace == "") {
+                  a_class.its_namespace = namespaceDecl->getNameAsString();
+                } else {
+                  a_class.its_namespace = namespaceDecl->getNameAsString() +
+                                          "::" + a_class.its_namespace;
+                }
+              }
+              context = context->getParent();
+            }
+            if (b == 0) {
+              a_class.its_namespace = "";
+            }
+            for (const auto *decl : CXXDeclaration->decls()) {
+              // if (decl->getCanonicalDecl() == CanonicalDeclaration) {
+              //   continue;
+              // }
+              // if (const CXXRecordDecl *Record =
+              // dyn_cast<CXXRecordDecl>(decl))
+              // {
+              //   if (i == 0) {
+              //     continue;
+              //   }
+              //   const SourceManager &sourceManager =
+              //   Context->getSourceManager(); SourceRange srcRange =
+              //   Record->getSourceRange();
+              //   srcRange.setEnd(Lexer::getLocForEndOfToken(
+              //       srcRange.getEnd(), 0, sourceManager,
+              //       Context->getLangOpts()));
+              //   bool Invalid = false;
+              //   StringRef srcText = Lexer::getSourceText(
+              //       CharSourceRange::getTokenRange(srcRange), sourceManager,
+              //       Context->getLangOpts(), &Invalid);
+              //   // std::cout << std::string(srcText) << std::endl;
+              //   std::string srcText_str = std::string(srcText);
+              //   if (srcText_str[srcText_str.length() - 1] == ';') {
+              //     srcText_str.erase(srcText_str.length() - 1);
+              //   }
+              //   // if (Record->isClass()) {
+              //   //   if (srcText.find('{') != std::string::npos) {
+              //   //     srcText_str.erase(srcText_str.find_first_of('{'));
+              //   //   }
+              //   //   a_class.fields.push_back(srcText_str);
+              //   // } else {
+              //   //   a_class.fields.push_back(srcText_str);
+              //   // }
+              //   a_class.fields.push_back(srcText_str);
+              // }
+              if (const FieldDecl *Field = dyn_cast<FieldDecl>(decl)) {
+                std::string field_type = Field->getType().getAsString();
+                // if (field_type.find(" ") != std::string::npos) {
+                //   field_type =
+                //       field_type.substr(field_type.find_last_of(" ") + 1);
+                // }
+                // QualType qualType = Field->getType();
+                // if (qualType->isReferenceType()) {
+                //   qualType = qualType.getNonReferenceType();
+                // }
+                // qualType = qualType.getUnqualifiedType();
+                // qualType = qualType.getNonReferenceType();
+                // qualType = qualType.getCanonicalType();
+                std::vector<std::string> types =
+                    gad_classes_and_functions.get_application_classes(
+                        field_type);
+                for (auto type : types) {
+                  Application application;
+                  application.class_name = type;
+                  application.signature = "";
+                  a_class.applications.push_back(application);
+                }
+                // Application application;
+                // application.class_name = get_application_type(qualType);
+                // application.signature = "";
+                // a_class.applications.push_back(application);
+                const SourceManager &sourceManager =
+                    Context->getSourceManager();
+                SourceRange srcRange = Field->getSourceRange();
+                srcRange.setEnd(Lexer::getLocForEndOfToken(
+                    srcRange.getEnd(), 0, sourceManager,
+                    Context->getLangOpts()));
+                bool Invalid = false;
+                StringRef srcText = Lexer::getSourceText(
+                    CharSourceRange::getTokenRange(srcRange), sourceManager,
+                    Context->getLangOpts(), &Invalid);
+                // std::cout << std::string(srcText) << std::endl;
+                std::string srcText_str = std::string(srcText);
+                if (srcText_str[srcText_str.length() - 1] == ';') {
+                  srcText_str.erase(srcText_str.length() - 1);
+                }
+                if (srcText_str.find("{") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("{"),
+                                    srcText_str.find_last_of("}") + 1 -
+                                        srcText_str.find_first_of("{"));
+                }
+                if (srcText_str.find("class") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("class"), 6);
+                }
+                if (srcText_str.find("struct") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("struct"), 7);
+                }
+                if (srcText_str.find("enum") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("enum"), 5);
+                }
+                if (srcText_str.find("union") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("union"), 6);
+                }
+                a_class.fields.push_back(srcText_str);
+              }
+              // else if (const EnumDecl *Enum = dyn_cast<EnumDecl>(decl)) {
+              //   const SourceManager &sourceManager =
+              //   Context->getSourceManager(); SourceRange srcRange =
+              //   Enum->getSourceRange();
+              //   srcRange.setEnd(Lexer::getLocForEndOfToken(
+              //       srcRange.getEnd(), 0, sourceManager,
+              //       Context->getLangOpts()));
+              //   bool Invalid = false;
+              //   StringRef srcText = Lexer::getSourceText(
+              //       CharSourceRange::getTokenRange(srcRange), sourceManager,
+              //       Context->getLangOpts(), &Invalid);
+              //   // std::cout << std::string(srcText) << std::endl;
+              //   std::string srcText_str = std::string(srcText);
+              //   if (srcText_str[srcText_str.length() - 1] == ';') {
+              //     srcText_str.erase(srcText_str.length() - 1);
+              //   }
+              //   a_class.fields.push_back(srcText_str);
+              // }
+              else if (const TypeAliasDecl *TypeAlias =
+                           dyn_cast<TypeAliasDecl>(decl)) {
+                Alias alias;
+                alias.alias_name = TypeAlias->getNameAsString();
+                alias.base_name = TypeAlias->getUnderlyingType().getAsString();
+                // QualType qualType = TypeAlias->getUnderlyingType();
+                // if (qualType->isReferenceType()) {
+                //   qualType = qualType.getNonReferenceType();
+                // }
+                // qualType = qualType.getUnqualifiedType();
+                // qualType = qualType.getNonReferenceType();
+                // qualType = qualType.getCanonicalType();
+                a_class.aliases.push_back(alias);
+                std::vector<std::string> types =
+                    gad_classes_and_functions.get_application_classes(
+                        alias.base_name);
+                for (auto type : types) {
+                  Application application;
+                  application.class_name = type;
+                  application.signature = "";
+                  a_class.applications.push_back(application);
+                }
+                // Application application;
+                // application.class_name = get_application_type(qualType);
+                // application.signature = "";
+                // a_class.applications.push_back(application);
+                // if (gad_classes_and_functions.has_class(alias.base_name)) {
+                //   std::vector<std::string> constructors =
+                //       gad_classes_and_functions.get_constructors(alias.base_name);
+                //   std::vector<std::pair<std::string, std::string>>
+                //   applications; for (auto constructor : constructors) {
+                //     applications.push_back(std::pair<std::string,
+                //     std::string>(
+                //         alias.base_name, constructor));
+                //   }
+                //   std::string destructor =
+                //       gad_classes_and_functions.get_destructor(alias.base_name);
+                //   if (destructor != "class") {
+                //     applications.push_back(std::pair<std::string,
+                //     std::string>(
+                //         alias.base_name, destructor));
+                //   }
+                //   for (auto application : applications) {
+                //     Application a_application;
+                //     a_application.class_name = application.first;
+                //     a_application.signature = application.second;
+                //     a_class.applications.push_back(a_application);
+                //   }
+                // }
+              }
+            }
+            // i = 1;
+            // while (i < a_class.fields.size()) {
+            //   if (a_class.fields[i] == a_class.fields[i - 1] ||
+            //       (a_class.fields[i].substr(
+            //            0, a_class.fields[i].find_last_of('}') + 1) != "" &&
+            //        a_class.fields[i - 1].substr(
+            //            0, a_class.fields[i - 1].find_last_of('}') + 1) != ""
+            //            &&
+            //        a_class.fields[i].substr(
+            //            0, a_class.fields[i].find_last_of('}') + 1) ==
+            //            a_class.fields[i - 1].substr(
+            //                0, a_class.fields[i - 1].find_last_of('}') + 1))
+            //                ||
+            //       a_class.fields[i].find(a_class.fields[i - 1]) !=
+            //           std::string::npos) {
+            //     a_class.fields.erase(a_class.fields.begin() + i - 1);
+            //   } else {
+            //     i++;
             //   }
-            //   a_class.fields.push_back(srcText_str);
             // }
-            else if (const TypeAliasDecl *TypeAlias =
-                         dyn_cast<TypeAliasDecl>(decl)) {
-              Alias alias;
-              alias.alias_name = TypeAlias->getNameAsString();
-              alias.base_name = TypeAlias->getUnderlyingType().getAsString();
-              QualType qualType = TypeAlias->getUnderlyingType();
-              // if (qualType->isReferenceType()) {
-              //   qualType = qualType.getNonReferenceType();
-              // }
-              // qualType = qualType.getUnqualifiedType();
-              // qualType = qualType.getNonReferenceType();
-              // qualType = qualType.getCanonicalType();
-              a_class.aliases.push_back(alias);
-              std::vector<std::string> types =
-                  gad_classes_and_functions.get_application_classes(
-                      qualType.getAsString());
-              for (auto type : types) {
-                Application application;
-                application.class_name = type;
-                application.signature = "";
-                a_class.applications.push_back(application);
-              }
-              // Application application;
-              // application.class_name = get_application_type(qualType);
-              // application.signature = "";
-              // a_class.applications.push_back(application);
-              // if (gad_classes_and_functions.has_class(alias.base_name)) {
-              //   std::vector<std::string> constructors =
-              //       gad_classes_and_functions.get_constructors(alias.base_name);
-              //   std::vector<std::pair<std::string, std::string>>
-              //   applications; for (auto constructor : constructors) {
-              //     applications.push_back(std::pair<std::string, std::string>(
-              //         alias.base_name, constructor));
-              //   }
-              //   std::string destructor =
-              //       gad_classes_and_functions.get_destructor(alias.base_name);
-              //   if (destructor != "class") {
-              //     applications.push_back(std::pair<std::string, std::string>(
-              //         alias.base_name, destructor));
-              //   }
-              //   for (auto application : applications) {
-              //     Application a_application;
-              //     a_application.class_name = application.first;
-              //     a_application.signature = application.second;
-              //     a_class.applications.push_back(a_application);
-              //   }
-              // }
-            }
-            i++;
+            // i = 0;
+            // while (i < a_class.fields.size()) {
+            //   if (a_class.fields[i] == "union" || a_class.fields[i] ==
+            //   "struct"
+            //   ||
+            //       a_class.fields[i] == "class" || a_class.fields[i] ==
+            //       "enum")
+            //       {
+            //     a_class.fields.erase(a_class.fields.begin() + i);
+            //   } else {
+            //     i++;
+            //   }
+            // }
+            //   std::cout << a_class.class_name << "\t" << a_class.base_class
+            //             << std::endl;
+            //   for (auto template_parameter : a_class.template_parameters) {
+            //     std::cout << template_parameter << "\t";
+            //   }
+            //   std::cout << std::endl;
+            gad_classes_and_functions.push_back_class(a_class);
           }
-          // i = 1;
-          // while (i < a_class.fields.size()) {
-          //   if (a_class.fields[i] == a_class.fields[i - 1] ||
-          //       (a_class.fields[i].substr(
-          //            0, a_class.fields[i].find_last_of('}') + 1) != "" &&
-          //        a_class.fields[i - 1].substr(
-          //            0, a_class.fields[i - 1].find_last_of('}') + 1) != "" &&
-          //        a_class.fields[i].substr(
-          //            0, a_class.fields[i].find_last_of('}') + 1) ==
-          //            a_class.fields[i - 1].substr(
-          //                0, a_class.fields[i - 1].find_last_of('}') + 1)) ||
-          //       a_class.fields[i].find(a_class.fields[i - 1]) !=
-          //           std::string::npos) {
-          //     a_class.fields.erase(a_class.fields.begin() + i - 1);
-          //   } else {
-          //     i++;
-          //   }
-          // }
-          // i = 0;
-          // while (i < a_class.fields.size()) {
-          //   if (a_class.fields[i] == "union" || a_class.fields[i] == "struct"
-          //   ||
-          //       a_class.fields[i] == "class" || a_class.fields[i] == "enum")
-          //       {
-          //     a_class.fields.erase(a_class.fields.begin() + i);
-          //   } else {
-          //     i++;
-          //   }
-          // }
-          //   std::cout << a_class.class_name << "\t" << a_class.base_class
-          //             << std::endl;
-          //   for (auto template_parameter : a_class.template_parameters) {
-          //     std::cout << template_parameter << "\t";
-          //   }
-          //   std::cout << std::endl;
-          gad_classes_and_functions.push_back_class(a_class);
         }
         // gad_classes_and_functions.cout();
+        else { // std::cout << Declaration->getNameAsString() << std::endl;
+          // Declaration->dump();
+          // std::cout << std::endl;
+          auto CanonicalDeclaration = Declaration->getCanonicalDecl();
+          std::string class_name = CanonicalDeclaration->getNameAsString();
+          for (auto *D : CanonicalDeclaration->getDeclContext()->decls()) {
+            if (auto *TD = dyn_cast<TypedefDecl>(D)) {
+              if (auto *TRD = TD->getUnderlyingType()->getAsRecordDecl()) {
+                if (TRD->getCanonicalDecl() == CanonicalDeclaration) {
+                  class_name = TD->getNameAsString();
+                  break;
+                }
+              }
+            }
+          }
+          // auto canonical_declaration = Declaration->getCanonicalDecl();
+          // CanonicalDeclaration->dump();
+          // Declaration->dump();
+          if (!gad_classes_and_functions.has_class(class_name)) {
+            Class a_class;
+            a_class.class_name = class_name;
+            if (Declaration->isClass()) {
+              a_class.record_type = MyRecordType::ClassType;
+            } else if (Declaration->isStruct()) {
+              a_class.record_type = MyRecordType::StructType;
+            } else if (Declaration->isUnion()) {
+              a_class.record_type = MyRecordType::UnionType;
+            }
+            // if (RecordDecl->getNumBases() > 0) {
+            //   a_class.base_class =
+            //       RecordDecl->bases_begin()->getType().getAsString();
+            // }
+            const DeclContext *context = Declaration->getDeclContext();
+            bool b = 0;
+            while (context) {
+              if (const NamespaceDecl *namespaceDecl =
+                      dyn_cast<NamespaceDecl>(context)) {
+                b = 1;
+                if (a_class.its_namespace == "") {
+                  a_class.its_namespace = namespaceDecl->getNameAsString();
+                } else {
+                  a_class.its_namespace = namespaceDecl->getNameAsString() +
+                                          "::" + a_class.its_namespace;
+                }
+              }
+              context = context->getParent();
+            }
+            if (b == 0) {
+              a_class.its_namespace = "";
+            }
+            for (const auto *decl : Declaration->decls()) {
+              // if (decl->getCanonicalDecl() == CanonicalDeclaration) {
+              //   continue;
+              // }
+              // if (const CXXRecordDecl *Record =
+              // dyn_cast<CXXRecordDecl>(decl))
+              // {
+              //   if (i == 0) {
+              //     continue;
+              //   }
+              //   const SourceManager &sourceManager =
+              //   Context->getSourceManager(); SourceRange srcRange =
+              //   Record->getSourceRange();
+              //   srcRange.setEnd(Lexer::getLocForEndOfToken(
+              //       srcRange.getEnd(), 0, sourceManager,
+              //       Context->getLangOpts()));
+              //   bool Invalid = false;
+              //   StringRef srcText = Lexer::getSourceText(
+              //       CharSourceRange::getTokenRange(srcRange), sourceManager,
+              //       Context->getLangOpts(), &Invalid);
+              //   // std::cout << std::string(srcText) << std::endl;
+              //   std::string srcText_str = std::string(srcText);
+              //   if (srcText_str[srcText_str.length() - 1] == ';') {
+              //     srcText_str.erase(srcText_str.length() - 1);
+              //   }
+              //   // if (Record->isClass()) {
+              //   //   if (srcText.find('{') != std::string::npos) {
+              //   //     srcText_str.erase(srcText_str.find_first_of('{'));
+              //   //   }
+              //   //   a_class.fields.push_back(srcText_str);
+              //   // } else {
+              //   //   a_class.fields.push_back(srcText_str);
+              //   // }
+              //   a_class.fields.push_back(srcText_str);
+              // }
+              if (const FieldDecl *Field = dyn_cast<FieldDecl>(decl)) {
+                std::string field_type = Field->getType().getAsString();
+                // if (field_type.find(" ") != std::string::npos) {
+                //   field_type =
+                //       field_type.substr(field_type.find_last_of(" ") + 1);
+                // }
+                // QualType qualType = Field->getType();
+                // if (qualType->isReferenceType()) {
+                //   qualType = qualType.getNonReferenceType();
+                // }
+                // qualType = qualType.getUnqualifiedType();
+                // qualType = qualType.getNonReferenceType();
+                // qualType = qualType.getCanonicalType();
+                std::vector<std::string> types =
+                    gad_classes_and_functions.get_application_classes(
+                        field_type);
+                for (auto type : types) {
+                  Application application;
+                  application.class_name = type;
+                  application.signature = "";
+                  a_class.applications.push_back(application);
+                }
+                // Application application;
+                // application.class_name = get_application_type(qualType);
+                // application.signature = "";
+                // a_class.applications.push_back(application);
+                const SourceManager &sourceManager =
+                    Context->getSourceManager();
+                SourceRange srcRange = Field->getSourceRange();
+                srcRange.setEnd(Lexer::getLocForEndOfToken(
+                    srcRange.getEnd(), 0, sourceManager,
+                    Context->getLangOpts()));
+                bool Invalid = false;
+                StringRef srcText = Lexer::getSourceText(
+                    CharSourceRange::getTokenRange(srcRange), sourceManager,
+                    Context->getLangOpts(), &Invalid);
+                // std::cout << std::string(srcText) << std::endl;
+                std::string srcText_str = std::string(srcText);
+                if (srcText_str[srcText_str.length() - 1] == ';') {
+                  srcText_str.erase(srcText_str.length() - 1);
+                }
+                if (srcText_str.find("{") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("{"),
+                                    srcText_str.find_last_of("}") + 1 -
+                                        srcText_str.find_first_of("{"));
+                }
+                if (srcText_str.find("class") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("class"), 6);
+                }
+                if (srcText_str.find("struct") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("struct"), 7);
+                }
+                if (srcText_str.find("enum") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("enum"), 5);
+                }
+                if (srcText_str.find("union") != std::string::npos) {
+                  srcText_str.erase(srcText_str.find_first_of("union"), 6);
+                }
+                a_class.fields.push_back(srcText_str);
+              }
+              // else if (const EnumDecl *Enum = dyn_cast<EnumDecl>(decl)) {
+              //   const SourceManager &sourceManager =
+              //   Context->getSourceManager(); SourceRange srcRange =
+              //   Enum->getSourceRange();
+              //   srcRange.setEnd(Lexer::getLocForEndOfToken(
+              //       srcRange.getEnd(), 0, sourceManager,
+              //       Context->getLangOpts()));
+              //   bool Invalid = false;
+              //   StringRef srcText = Lexer::getSourceText(
+              //       CharSourceRange::getTokenRange(srcRange), sourceManager,
+              //       Context->getLangOpts(), &Invalid);
+              //   // std::cout << std::string(srcText) << std::endl;
+              //   std::string srcText_str = std::string(srcText);
+              //   if (srcText_str[srcText_str.length() - 1] == ';') {
+              //     srcText_str.erase(srcText_str.length() - 1);
+              //   }
+              //   a_class.fields.push_back(srcText_str);
+              // }
+              else if (const TypeAliasDecl *TypeAlias =
+                           dyn_cast<TypeAliasDecl>(decl)) {
+                Alias alias;
+                alias.alias_name = TypeAlias->getNameAsString();
+                alias.base_name = TypeAlias->getUnderlyingType().getAsString();
+                // QualType qualType = TypeAlias->getUnderlyingType();
+                // if (qualType->isReferenceType()) {
+                //   qualType = qualType.getNonReferenceType();
+                // }
+                // qualType = qualType.getUnqualifiedType();
+                // qualType = qualType.getNonReferenceType();
+                // qualType = qualType.getCanonicalType();
+                a_class.aliases.push_back(alias);
+                std::vector<std::string> types =
+                    gad_classes_and_functions.get_application_classes(
+                        alias.base_name);
+                for (auto type : types) {
+                  Application application;
+                  application.class_name = type;
+                  application.signature = "";
+                  a_class.applications.push_back(application);
+                }
+                // Application application;
+                // application.class_name = get_application_type(qualType);
+                // application.signature = "";
+                // a_class.applications.push_back(application);
+                // if (gad_classes_and_functions.has_class(alias.base_name)) {
+                //   std::vector<std::string> constructors =
+                //       gad_classes_and_functions.get_constructors(alias.base_name);
+                //   std::vector<std::pair<std::string, std::string>>
+                //   applications; for (auto constructor : constructors) {
+                //     applications.push_back(std::pair<std::string,
+                //     std::string>(
+                //         alias.base_name, constructor));
+                //   }
+                //   std::string destructor =
+                //       gad_classes_and_functions.get_destructor(alias.base_name);
+                //   if (destructor != "class") {
+                //     applications.push_back(std::pair<std::string,
+                //     std::string>(
+                //         alias.base_name, destructor));
+                //   }
+                //   for (auto application : applications) {
+                //     Application a_application;
+                //     a_application.class_name = application.first;
+                //     a_application.signature = application.second;
+                //     a_class.applications.push_back(a_application);
+                //   }
+                // }
+              }
+            }
+            // i = 1;
+            // while (i < a_class.fields.size()) {
+            //   if (a_class.fields[i] == a_class.fields[i - 1] ||
+            //       (a_class.fields[i].substr(
+            //            0, a_class.fields[i].find_last_of('}') + 1) != "" &&
+            //        a_class.fields[i - 1].substr(
+            //            0, a_class.fields[i - 1].find_last_of('}') + 1) != ""
+            //            &&
+            //        a_class.fields[i].substr(
+            //            0, a_class.fields[i].find_last_of('}') + 1) ==
+            //            a_class.fields[i - 1].substr(
+            //                0, a_class.fields[i - 1].find_last_of('}') + 1))
+            //                ||
+            //       a_class.fields[i].find(a_class.fields[i - 1]) !=
+            //           std::string::npos) {
+            //     a_class.fields.erase(a_class.fields.begin() + i - 1);
+            //   } else {
+            //     i++;
+            //   }
+            // }
+            // i = 0;
+            // while (i < a_class.fields.size()) {
+            //   if (a_class.fields[i] == "union" || a_class.fields[i] ==
+            //   "struct"
+            //   ||
+            //       a_class.fields[i] == "class" || a_class.fields[i] ==
+            //       "enum")
+            //       {
+            //     a_class.fields.erase(a_class.fields.begin() + i);
+            //   } else {
+            //     i++;
+            //   }
+            // }
+            //   std::cout << a_class.class_name << "\t" << a_class.base_class
+            //             << std::endl;
+            //   for (auto template_parameter : a_class.template_parameters) {
+            //     std::cout << template_parameter << "\t";
+            //   }
+            //   std::cout << std::endl;
+            gad_classes_and_functions.push_back_class(a_class);
+          }
+        }
       }
     }
     return true;
@@ -1469,23 +1738,22 @@ public:
       if (file_path.find(gad_project_path) != std::string::npos) {
         //     std::cout << get_signature(Declaration->getAsFunction()) <<
         //     std::endl; Declaration->dump(); std::cout << std::endl;
-        auto FunctionTemplateDeclaration = Declaration->getCanonicalDecl();
+        auto CanonicalDeclaration = Declaration->getCanonicalDecl();
         // auto canonical_declaration = Declaration->getCanonicalDecl();
         // canonical_declaration->dump();
         // Declaration->dump();
-        FunctionDecl *Func =
-            FunctionTemplateDeclaration->getTemplatedDecl()->getCanonicalDecl();
+        FunctionDecl *Func = Declaration->getTemplatedDecl();
+        FunctionDecl *CanonicalFunc = Func->getCanonicalDecl();
         if (!isa<CXXMethodDecl>(Func)) {
-          std::string function_name = Func->getNameAsString();
-          std::string signature = get_signature(Func);
+          std::string function_name = CanonicalDeclaration->getNameAsString();
+          std::string signature = get_signature(CanonicalFunc);
           if (!gad_classes_and_functions.has_function("class", signature)) {
             Function function;
             // std::vector<Application> applications;
             function.function_name = function_name;
             function.signature = signature;
             function.is_template = 1;
-            auto template_parameters =
-                FunctionTemplateDeclaration->getTemplateParameters();
+            auto template_parameters = Declaration->getTemplateParameters();
             for (auto template_parameter : template_parameters->asArray()) {
               function.template_parameters.push_back(
                   template_parameter->getNameAsString());
@@ -1504,7 +1772,7 @@ public:
             //   return_type =
             //       return_type.substr(return_type.find_last_of(" ") + 1);
             // }
-            QualType qualType = Func->getReturnType();
+            // QualType qualType = Func->getReturnType();
             // std::cout << qualType.getAsString() << std::endl;
             // if (qualType->isReferenceType()) {
             //   qualType = qualType.getNonReferenceType();
@@ -1519,8 +1787,7 @@ public:
             // std::cout << qualType.getAsString() << std::endl;
             // qualType = qualType.getCanonicalType();
             std::vector<std::string> types =
-                gad_classes_and_functions.get_application_classes(
-                    qualType.getAsString());
+                gad_classes_and_functions.get_application_classes(return_type);
             for (auto type : types) {
               Application application;
               application.class_name = type;
@@ -1537,7 +1804,7 @@ public:
               //   param_type =
               //       param_type.substr(param_type.find_last_of(" ") + 1);
               // }
-              QualType qualType = param->getType();
+              // QualType qualType = param->getType();
               // std::cout << qualType.getAsString() << std::endl;
               // if (qualType->isReferenceType()) {
               //   qualType = qualType.getNonReferenceType();
@@ -1552,8 +1819,7 @@ public:
               // std::cout << qualType.getAsString() << std::endl;
               // qualType = qualType.getCanonicalType();
               std::vector<std::string> types =
-                  gad_classes_and_functions.get_application_classes(
-                      qualType.getAsString());
+                  gad_classes_and_functions.get_application_classes(param_type);
               for (auto type : types) {
                 Application application;
                 application.class_name = type;
@@ -1606,11 +1872,14 @@ public:
             }
             StmtVarFunctionVisitor function_stmt_visitor(Context);
             function_stmt_visitor.TraverseStmt(Func->getBody());
-            function.applications = function_stmt_visitor.get_applications();
+            std::vector<Application> stmt_applications =
+                function_stmt_visitor.get_applications();
+            for (auto application : stmt_applications) {
+              function.applications.push_back(application);
+            }
             gad_classes_and_functions.push_back_function(function);
           }
-          for (FunctionDecl *Spec :
-               FunctionTemplateDeclaration->specializations()) {
+          for (FunctionDecl *Spec : Declaration->specializations()) {
             const TemplateArgumentList *TAL =
                 Spec->getTemplateSpecializationArgs();
             std::vector<std::pair<std::string, std::string>> applications;
@@ -1626,7 +1895,7 @@ public:
                   //       type_name.substr(type_name.find_last_of(" ") + 1);
                   // }
                   specialization_parameter.push_back(type_name);
-                  QualType qualType = Arg.getAsType();
+                  // QualType qualType = Arg.getAsType();
                   // if (qualType->isReferenceType()) {
                   //   qualType = qualType.getNonReferenceType();
                   // }
@@ -1635,7 +1904,7 @@ public:
                   // qualType = qualType.getCanonicalType();
                   std::vector<std::string> types =
                       gad_classes_and_functions.get_application_classes(
-                          qualType.getAsString());
+                          type_name);
                   for (auto type : types) {
                     std::pair<std::string, std::string> application;
                     application.first = type;
@@ -1655,13 +1924,13 @@ public:
             }
           }
         } else {
-          const CXXRecordDecl *ParentClass =
+          const CXXRecordDecl *CanonicalParentClass =
               dyn_cast<CXXRecordDecl>(Func->getParent())->getCanonicalDecl();
-          std::string class_name = ParentClass->getNameAsString();
+          std::string class_name = CanonicalParentClass->getNameAsString();
           if (gad_classes_and_functions.has_class(class_name)) {
             // std::cout << "Class Declaration " << class_name <<
             // std::endl;
-            std::string signature = get_signature(Func);
+            std::string signature = get_signature(CanonicalFunc);
             if (!gad_classes_and_functions.has_function(class_name,
                                                         signature)) {
               if (isa<CXXConstructorDecl>(Func)) {
@@ -1680,7 +1949,7 @@ public:
                   //   param_type =
                   //       param_type.substr(param_type.find_last_of(" ") + 1);
                   // }
-                  QualType qualType = param->getType();
+                  // QualType qualType = param->getType();
                   // if (qualType->isReferenceType()) {
                   //   qualType = qualType.getNonReferenceType();
                   // }
@@ -1689,7 +1958,7 @@ public:
                   // qualType = qualType.getCanonicalType();
                   std::vector<std::string> types =
                       gad_classes_and_functions.get_application_classes(
-                          qualType.getAsString());
+                          param_type);
                   for (auto type : types) {
                     Application application;
                     application.class_name = type;
@@ -1725,8 +1994,11 @@ public:
                 constructor.function_body = srcText;
                 StmtVarFunctionVisitor function_stmt_visitor(Context);
                 function_stmt_visitor.TraverseStmt(Func->getBody());
-                constructor.applications =
+                std::vector<Application> stmt_applications =
                     function_stmt_visitor.get_applications();
+                for (auto application : stmt_applications) {
+                  constructor.applications.push_back(application);
+                }
                 gad_classes_and_functions.push_back_constructor(class_name,
                                                                 constructor);
               } else if (isa<CXXDestructorDecl>(Func)) {
@@ -1751,8 +2023,11 @@ public:
                 destructor.function_body = srcText;
                 StmtVarFunctionVisitor function_stmt_visitor(Context);
                 function_stmt_visitor.TraverseStmt(Func->getBody());
-                destructor.applications =
+                std::vector<Application> stmt_applications =
                     function_stmt_visitor.get_applications();
+                for (auto application : stmt_applications) {
+                  destructor.applications.push_back(application);
+                }
                 gad_classes_and_functions.push_back_destructor(class_name,
                                                                destructor);
               } else {
@@ -1764,8 +2039,7 @@ public:
                 method.method_name = function_name;
                 method.signature = signature;
                 method.is_template = 1;
-                auto template_parameters =
-                    FunctionTemplateDeclaration->getTemplateParameters();
+                auto template_parameters = Declaration->getTemplateParameters();
                 for (auto template_parameter : template_parameters->asArray()) {
                   method.template_parameters.push_back(
                       template_parameter->getNameAsString());
@@ -1786,7 +2060,7 @@ public:
                 //   return_type =
                 //       return_type.substr(return_type.find_last_of(" ") + 1);
                 // }
-                QualType qualType = Func->getReturnType();
+                // QualType qualType = Func->getReturnType();
                 // if (qualType->isReferenceType()) {
                 //   qualType = qualType.getNonReferenceType();
                 // }
@@ -1795,7 +2069,7 @@ public:
                 // qualType = qualType.getCanonicalType();
                 std::vector<std::string> types =
                     gad_classes_and_functions.get_application_classes(
-                        qualType.getAsString());
+                        return_type);
                 for (auto type : types) {
                   Application application;
                   application.class_name = type;
@@ -1812,7 +2086,7 @@ public:
                   //   param_type =
                   //       param_type.substr(param_type.find_last_of(" ") + 1);
                   // }
-                  QualType qualType = param->getType();
+                  // QualType qualType = param->getType();
                   // if (qualType->isReferenceType()) {
                   //   qualType = qualType.getNonReferenceType();
                   // }
@@ -1821,7 +2095,7 @@ public:
                   // qualType = qualType.getCanonicalType();
                   std::vector<std::string> types =
                       gad_classes_and_functions.get_application_classes(
-                          qualType.getAsString());
+                          param_type);
                   for (auto type : types) {
                     Application application;
                     application.class_name = type;
@@ -1857,14 +2131,17 @@ public:
                 method.function_body = srcText;
                 StmtVarFunctionVisitor function_stmt_visitor(Context);
                 function_stmt_visitor.TraverseStmt(Func->getBody());
-                method.applications = function_stmt_visitor.get_applications();
+                std::vector<Application> stmt_applications =
+                    function_stmt_visitor.get_applications();
+                for (auto application : stmt_applications) {
+                  method.applications.push_back(application);
+                }
                 gad_classes_and_functions.push_back_method(class_name, method);
               }
             }
             if (isa<CXXMethodDecl>(Func)) {
               // Declaration->dump();
-              for (FunctionDecl *Spec :
-                   FunctionTemplateDeclaration->specializations()) {
+              for (FunctionDecl *Spec : Declaration->specializations()) {
                 const TemplateArgumentList *TAL =
                     Spec->getTemplateSpecializationArgs();
                 if (TAL) {
@@ -1881,7 +2158,7 @@ public:
                       //       1);
                       // }
                       specialization_parameter.push_back(type_name);
-                      QualType qualType = Arg.getAsType();
+                      // QualType qualType = Arg.getAsType();
                       // if (qualType->isReferenceType()) {
                       //   qualType = qualType.getNonReferenceType();
                       // }
@@ -1890,7 +2167,7 @@ public:
                       // qualType = qualType.getCanonicalType();
                       std::vector<std::string> types =
                           gad_classes_and_functions.get_application_classes(
-                              qualType.getAsString());
+                              type_name);
                       for (auto type : types) {
                         std::pair<std::string, std::string> application;
                         application.first = type;
@@ -1927,13 +2204,13 @@ public:
       if (file_path.find(gad_project_path) != std::string::npos) {
         //     std::cout << get_signature(Declaration->getAsFunction()) <<
         //     std::endl; Declaration->dump(); std::cout << std::endl;
-        auto FunctionDeclaration = Declaration->getCanonicalDecl();
+        auto CanonicalDeclaration = Declaration->getCanonicalDecl();
         // auto canonical_declaration = Declaration->getCanonicalDecl();
         // canonical_declaration->dump();
         // Declaration->dump();
-        if (!isa<CXXMethodDecl>(FunctionDeclaration)) {
-          std::string function_name = FunctionDeclaration->getNameAsString();
-          std::string signature = get_signature(FunctionDeclaration);
+        if (!isa<CXXMethodDecl>(CanonicalDeclaration)) {
+          std::string function_name = CanonicalDeclaration->getNameAsString();
+          std::string signature = get_signature(CanonicalDeclaration);
           if (!gad_classes_and_functions.has_function("class", signature)) {
             Function function;
             // std::vector<Application> applications;
@@ -1941,8 +2218,7 @@ public:
             function.signature = signature;
             function.is_template = 0;
             const SourceManager &sourceManager = Context->getSourceManager();
-            SourceRange srcRange_r =
-                FunctionDeclaration->getReturnTypeSourceRange();
+            SourceRange srcRange_r = Declaration->getReturnTypeSourceRange();
             srcRange_r.setEnd(Lexer::getLocForEndOfToken(
                 srcRange_r.getEnd(), 0, sourceManager, Context->getLangOpts()));
             bool Invalid = false;
@@ -1951,12 +2227,12 @@ public:
                 Context->getLangOpts(), &Invalid);
             function.return_type = std::string(srcText_r);
             std::string return_type =
-                FunctionDeclaration->getReturnType().getAsString();
+                Declaration->getReturnType().getAsString();
             // if (return_type.find(" ") != std::string::npos) {
             //   return_type =
             //       return_type.substr(return_type.find_last_of(" ") + 1);
             // }
-            QualType qualType = FunctionDeclaration->getReturnType();
+            // QualType qualType = FunctionDeclaration->getReturnType();
             // if (qualType->isReferenceType()) {
             //   qualType = qualType.getNonReferenceType();
             // }
@@ -1965,8 +2241,7 @@ public:
             // qualType = qualType.getCanonicalType(); std::set<std::string>
             // types;
             std::vector<std::string> types =
-                gad_classes_and_functions.get_application_classes(
-                    qualType.getAsString());
+                gad_classes_and_functions.get_application_classes(return_type);
             for (auto type : types) {
               Application application;
               application.class_name = type;
@@ -1977,13 +2252,13 @@ public:
             // application.class_name = get_application_type(qualType);
             // application.signature = "";
             // function.applications.push_back(application);
-            for (const ParmVarDecl *param : FunctionDeclaration->parameters()) {
+            for (const ParmVarDecl *param : Declaration->parameters()) {
               std::string param_type = param->getType().getAsString();
               // if (param_type.find(" ") != std::string::npos) {
               //   param_type =
               //       param_type.substr(param_type.find_last_of(" ") + 1);
               // }
-              QualType qualType = param->getType();
+              // QualType qualType = param->getType();
               // if (qualType->isReferenceType()) {
               //   qualType = qualType.getNonReferenceType();
               // }
@@ -1991,8 +2266,7 @@ public:
               // qualType = qualType.getNonReferenceType();
               // qualType = qualType.getCanonicalType();
               std::vector<std::string> types =
-                  gad_classes_and_functions.get_application_classes(
-                      qualType.getAsString());
+                  gad_classes_and_functions.get_application_classes(param_type);
               for (auto type : types) {
                 Application application;
                 application.class_name = type;
@@ -2018,14 +2292,14 @@ public:
               }
               function.parameters.push_back(srcText_str);
             }
-            SourceRange srcRange = FunctionDeclaration->getSourceRange();
+            SourceRange srcRange = Declaration->getSourceRange();
             srcRange.setEnd(Lexer::getLocForEndOfToken(
                 srcRange.getEnd(), 0, sourceManager, Context->getLangOpts()));
             StringRef srcText = Lexer::getSourceText(
                 CharSourceRange::getTokenRange(srcRange), sourceManager,
                 Context->getLangOpts(), &Invalid);
             function.function_body = srcText;
-            const DeclContext *context = FunctionDeclaration->getDeclContext();
+            const DeclContext *context = Declaration->getDeclContext();
             bool b = 0;
             while (context) {
               if (const NamespaceDecl *namespaceDecl =
@@ -2044,22 +2318,26 @@ public:
               function.its_namespace = "";
             }
             StmtVarFunctionVisitor function_stmt_visitor(Context);
-            function_stmt_visitor.TraverseStmt(FunctionDeclaration->getBody());
-            function.applications = function_stmt_visitor.get_applications();
+            function_stmt_visitor.TraverseStmt(Declaration->getBody());
+            std::vector<Application> stmt_applications =
+                function_stmt_visitor.get_applications();
+            for (auto application : stmt_applications) {
+              function.applications.push_back(application);
+            }
             gad_classes_and_functions.push_back_function(function);
           }
         } else {
-          const CXXRecordDecl *ParentClass =
-              dyn_cast<CXXRecordDecl>(FunctionDeclaration->getParent())
+          const CXXRecordDecl *CanonicalParentClass =
+              dyn_cast<CXXRecordDecl>(CanonicalDeclaration->getParent())
                   ->getCanonicalDecl();
-          std::string class_name = ParentClass->getNameAsString();
+          std::string class_name = CanonicalParentClass->getNameAsString();
           if (gad_classes_and_functions.has_class(class_name)) {
             // std::cout << "Class Declaration " << class_name <<
             // std::endl;
-            std::string signature = get_signature(FunctionDeclaration);
+            std::string signature = get_signature(CanonicalDeclaration);
             if (!gad_classes_and_functions.has_function(class_name,
                                                         signature)) {
-              if (isa<CXXConstructorDecl>(FunctionDeclaration)) {
+              if (isa<CXXConstructorDecl>(CanonicalDeclaration)) {
                 // std::string signature;
                 // std::string function_body;
                 // std::vector<std::string> parameters;
@@ -2069,14 +2347,13 @@ public:
                     Context->getSourceManager();
                 bool Invalid = false;
                 constructor.signature = signature;
-                for (const ParmVarDecl *param :
-                     FunctionDeclaration->parameters()) {
+                for (const ParmVarDecl *param : Declaration->parameters()) {
                   std::string param_type = param->getType().getAsString();
                   // if (param_type.find(" ") != std::string::npos) {
                   //   param_type =
                   //       param_type.substr(param_type.find_last_of(" ") + 1);
                   // }
-                  QualType qualType = param->getType();
+                  // QualType qualType = param->getType();
                   // std::cout << qualType.getAsString() << std::endl;
                   // if (qualType->isReferenceType()) {
                   //   qualType = qualType.getNonReferenceType();
@@ -2092,7 +2369,7 @@ public:
                   // qualType = qualType.getCanonicalType();
                   std::vector<std::string> types =
                       gad_classes_and_functions.get_application_classes(
-                          qualType.getAsString());
+                          param_type);
                   for (auto type : types) {
                     Application application;
                     application.class_name = type;
@@ -2118,7 +2395,7 @@ public:
                   }
                   constructor.parameters.push_back(srcText_str);
                 }
-                SourceRange srcRange = FunctionDeclaration->getSourceRange();
+                SourceRange srcRange = Declaration->getSourceRange();
                 srcRange.setEnd(Lexer::getLocForEndOfToken(
                     srcRange.getEnd(), 0, sourceManager,
                     Context->getLangOpts()));
@@ -2127,13 +2404,15 @@ public:
                     Context->getLangOpts(), &Invalid);
                 constructor.function_body = srcText;
                 StmtVarFunctionVisitor function_stmt_visitor(Context);
-                function_stmt_visitor.TraverseStmt(
-                    FunctionDeclaration->getBody());
-                constructor.applications =
+                function_stmt_visitor.TraverseStmt(Declaration->getBody());
+                std::vector<Application> stmt_applications =
                     function_stmt_visitor.get_applications();
+                for (auto application : stmt_applications) {
+                  constructor.applications.push_back(application);
+                }
                 gad_classes_and_functions.push_back_constructor(class_name,
                                                                 constructor);
-              } else if (isa<CXXDestructorDecl>(FunctionDeclaration)) {
+              } else if (isa<CXXDestructorDecl>(CanonicalDeclaration)) {
                 // std::string signature;
                 // std::string function_body;
                 // std::vector<Application> applications;
@@ -2143,7 +2422,7 @@ public:
                 Destructor destructor;
                 const SourceManager &sourceManager =
                     Context->getSourceManager();
-                SourceRange srcRange = FunctionDeclaration->getSourceRange();
+                SourceRange srcRange = Declaration->getSourceRange();
                 srcRange.setEnd(Lexer::getLocForEndOfToken(
                     srcRange.getEnd(), 0, sourceManager,
                     Context->getLangOpts()));
@@ -2154,16 +2433,17 @@ public:
                 destructor.signature = signature;
                 destructor.function_body = srcText;
                 StmtVarFunctionVisitor function_stmt_visitor(Context);
-                function_stmt_visitor.TraverseStmt(
-                    FunctionDeclaration->getBody());
-                destructor.applications =
+                function_stmt_visitor.TraverseStmt(Declaration->getBody());
+                std::vector<Application> stmt_applications =
                     function_stmt_visitor.get_applications();
+                for (auto application : stmt_applications) {
+                  destructor.applications.push_back(application);
+                }
                 gad_classes_and_functions.push_back_destructor(class_name,
                                                                destructor);
               } else {
                 Method method;
-                std::string function_name =
-                    FunctionDeclaration->getNameAsString();
+                std::string function_name = Declaration->getNameAsString();
                 // std::cout << "Method Declaration " <<
                 // function_name
                 //           << std::endl;
@@ -2173,7 +2453,7 @@ public:
                 const SourceManager &sourceManager =
                     Context->getSourceManager();
                 SourceRange srcRange_r =
-                    FunctionDeclaration->getReturnTypeSourceRange();
+                    Declaration->getReturnTypeSourceRange();
                 srcRange_r.setEnd(Lexer::getLocForEndOfToken(
                     srcRange_r.getEnd(), 0, sourceManager,
                     Context->getLangOpts()));
@@ -2183,12 +2463,12 @@ public:
                     Context->getLangOpts(), &Invalid);
                 method.return_type = std::string(srcText_r);
                 std::string return_type =
-                    FunctionDeclaration->getReturnType().getAsString();
+                    Declaration->getReturnType().getAsString();
                 // if (return_type.find(" ") != std::string::npos) {
                 //   return_type =
                 //       return_type.substr(return_type.find_last_of(" ") + 1);
                 // }
-                QualType qualType = FunctionDeclaration->getReturnType();
+                // QualType qualType = FunctionDeclaration->getReturnType();
                 // if (qualType->isReferenceType()) {
                 //   qualType = qualType.getNonReferenceType();
                 // }
@@ -2197,7 +2477,7 @@ public:
                 // qualType = qualType.getCanonicalType();
                 std::vector<std::string> types =
                     gad_classes_and_functions.get_application_classes(
-                        qualType.getAsString());
+                        return_type);
                 for (auto type : types) {
                   Application application;
                   application.class_name = type;
@@ -2208,14 +2488,13 @@ public:
                 // application.class_name = get_application_type(qualType);
                 // application.signature = "";
                 // method.applications.push_back(application);
-                for (const ParmVarDecl *param :
-                     FunctionDeclaration->parameters()) {
+                for (const ParmVarDecl *param : Declaration->parameters()) {
                   std::string param_type = param->getType().getAsString();
                   // if (param_type.find(" ") != std::string::npos) {
                   //   param_type =
                   //       param_type.substr(param_type.find_last_of(" ") + 1);
                   // }
-                  QualType qualType = param->getType();
+                  // QualType qualType = param->getType();
                   // if (qualType->isReferenceType()) {
                   //   qualType = qualType.getNonReferenceType();
                   // }
@@ -2224,7 +2503,7 @@ public:
                   // qualType = qualType.getCanonicalType();
                   std::vector<std::string> types =
                       gad_classes_and_functions.get_application_classes(
-                          qualType.getAsString());
+                          param_type);
                   for (auto type : types) {
                     Application application;
                     application.class_name = type;
@@ -2250,7 +2529,7 @@ public:
                   }
                   method.parameters.push_back(srcText_str);
                 }
-                SourceRange srcRange = FunctionDeclaration->getSourceRange();
+                SourceRange srcRange = Declaration->getSourceRange();
                 srcRange.setEnd(Lexer::getLocForEndOfToken(
                     srcRange.getEnd(), 0, sourceManager,
                     Context->getLangOpts()));
@@ -2259,9 +2538,12 @@ public:
                     Context->getLangOpts(), &Invalid);
                 method.function_body = srcText;
                 StmtVarFunctionVisitor function_stmt_visitor(Context);
-                function_stmt_visitor.TraverseStmt(
-                    FunctionDeclaration->getBody());
-                method.applications = function_stmt_visitor.get_applications();
+                function_stmt_visitor.TraverseStmt(Declaration->getBody());
+                std::vector<Application> stmt_applications =
+                    function_stmt_visitor.get_applications();
+                for (auto application : stmt_applications) {
+                  method.applications.push_back(application);
+                }
                 gad_classes_and_functions.push_back_method(class_name, method);
               }
             }
@@ -2280,15 +2562,27 @@ public:
       clang::PresumedLoc presumedLoc = SM.getPresumedLoc(loc);
       std::string file_path = presumedLoc.getFilename();
       if (file_path.find(gad_project_path) != std::string::npos) {
-        auto EnumDeclaration = Declaration->getCanonicalDecl();
+        auto CanonicalDeclaration = Declaration->getCanonicalDecl();
         // Declaration->dump();
-        std::string enum_name = EnumDeclaration->getNameAsString();
+        std::string enum_name = CanonicalDeclaration->getNameAsString();
+        for (auto *D : CanonicalDeclaration->getDeclContext()->decls()) {
+          if (auto *TD = dyn_cast<TypedefDecl>(D)) {
+            if (auto *TRD = TD->getUnderlyingType()->getAsTagDecl()) {
+              if (auto *ETRD = dyn_cast<EnumDecl>(TRD)) {
+                if (ETRD->getCanonicalDecl() == CanonicalDeclaration) {
+                  enum_name = TD->getNameAsString();
+                  break;
+                }
+              }
+            }
+          }
+        }
         if (!gad_classes_and_functions.has_class(enum_name)) {
           Class a_class;
           a_class.class_name = enum_name;
           a_class.record_type = MyRecordType::EnumType;
-          for (auto it = EnumDeclaration->enumerator_begin();
-               it != EnumDeclaration->enumerator_end(); ++it) {
+          for (auto it = Declaration->enumerator_begin();
+               it != Declaration->enumerator_end(); ++it) {
             EnumConstantDecl *ECD = *it;
             a_class.fields.push_back(ECD->getNameAsString());
             // std::cout << "Enumerator: " << ECD->getNameAsString() <<
