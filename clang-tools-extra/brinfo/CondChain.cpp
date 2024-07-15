@@ -453,7 +453,7 @@ bool CondChainInfo::setFuncCallInfo(CondStatus &Cond, const CallExpr *CE) {
 }
 
 bool CondChainInfo::setDefInfo(CondStatus &Cond, const Stmt *S) {
-  LastDefInfo::DefInfoMap &DefInfoMap = LastDefInfo.DefInfo;
+  LastDefInfo::DefInfoMap &DefInfoMap = DefInfo.DefInfo;
   bool Flag = Cond.Flag;
   if (Cond.Condition->isNot())
     Flag = !Flag;
@@ -468,7 +468,7 @@ bool CondChainInfo::setDefInfo(CondStatus &Cond, const Stmt *S) {
 }
 
 bool CondChainInfo::setParmInfo(CondStatus &Cond, const ParmVarDecl *PVD) {
-  LastDefInfo::ParmInfoMap &ParmInfoMap = LastDefInfo.ParmInfo;
+  LastDefInfo::ParmInfoMap &ParmInfoMap = DefInfo.ParmInfo;
   bool Flag = Cond.Flag;
   if (Cond.Condition->isNot())
     Flag = !Flag;

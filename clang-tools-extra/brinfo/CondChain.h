@@ -73,7 +73,7 @@ struct CondChainInfo {
   CondChain Chain;
   BlkPath Path;
   bool IsContra = false;
-  LastDefInfo LastDefInfo; // last definition information in a condition chain
+  LastDefInfo DefInfo; // last definition information in a condition chain
   unordered_map<const FunctionDecl *, vector<CallExprInfo>>
       FuncCallInfo; // function call information in a condition chain
 

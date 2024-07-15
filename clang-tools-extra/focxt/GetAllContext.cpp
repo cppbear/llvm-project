@@ -208,6 +208,8 @@ public:
             } else {
               global_var.its_namespace = namespaceDecl->getNameAsString() +
                                          "::" + global_var.its_namespace;
+              global_var.its_namespace = namespaceDecl->getNameAsString() +
+                                         "::" + global_var.its_namespace;
             }
           }
           decl_context = decl_context->getParent();
