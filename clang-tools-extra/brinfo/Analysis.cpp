@@ -331,11 +331,8 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
     vector<unsigned> LoopBlks = BlkCond.LoopBlks;
     unsigned ID = Blk->getBlockID();
 
-    DEBUG_PRINT("Block: " << ID << " Parent: " << Parent);
+    // DEBUG_PRINT("Block: " << ID << " Parent: " << Parent);
     // DEBUG_EXEC(dumpBlkChain());
-
-    if (ID == 43)
-      int A = 0;
 
     if (ColorOfBlk[ID] == 0)
       ColorOfBlk[ID] = 1;
@@ -354,16 +351,14 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
       llvm::sort(SortedPath.begin(), SortedPath.end());
       // Loop detected
       if (binary_search(SortedPath.begin(), SortedPath.end(), Blk)) {
-        DEBUG_PRINT("Loop detected at Block " << Blk->getBlockID() << " in "
-                                              << Signature);
-        if (Blk->getBlockID() == 44)
-          int A = 0;
-        DEBUG_EXEC(unsigned I = 0; for (const CFGBlock *Blk
-                                        : Path) {
-          if (I++ > 0)
-            outs() << " \033[36m\033[1m->\033[0m ";
-          outs() << Blk->getBlockID();
-        } outs() << "\n";);
+        // DEBUG_PRINT("Loop detected at Block " << Blk->getBlockID() << " in "
+        //                                       << Signature);
+        // DEBUG_EXEC(unsigned I = 0; for (const CFGBlock *Blk
+        //                                 : Path) {
+        //   if (I++ > 0)
+        //     outs() << " \033[36m\033[1m->\033[0m ";
+        //   outs() << Blk->getBlockID();
+        // } outs() << "\n";);
         bool Traverse = false;
         for (CFGBlock::AdjacentBlock Adj : Blk->succs()) {
           if (Adj.isReachable()) {
@@ -371,7 +366,6 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
               if (LoopInner[Blk->getBlockID()].find(Adj->getBlockID()) !=
                   LoopInner[Blk->getBlockID()].end())
                 continue;
-              outs() << "Stack push " << Adj->getBlockID() << "\n";
               vector<unsigned> Loop = {};
               for (const CFGBlock *Blk : Path) {
                 Loop.push_back(Blk->getBlockID());
@@ -381,14 +375,11 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
             }
           }
         }
-        //FIXME: consider remove this
         if (!Traverse && InLoop) {
           unsigned PathSize = Path.size();
           for (unsigned I = PathSize - 1; I > 0; --I) {
             const CFGBlock *Succ = Path[I];
             const CFGBlock *Pred = Path[I - 1];
-            outs() << "Clear Block " << Succ->getBlockID() << "\n";
-            CondChainForBlk[Succ->getBlockID()] = {}; // clear
             bool IsSucc = isSucc(Pred, Succ);
             if (!IsSucc) {
               for (CFGBlock::AdjacentBlock Adj : Pred->succs()) {
@@ -487,18 +478,15 @@ void Analysis::dfsTraverseCFGLoop(long Parent, CFGBlock *FirstBlk) {
         const CFGBlock::AdjacentBlock *Adj = Blk->succ_begin();
         if (InnerCond) {
           if (Adj->isReachable()) {
-            outs() << "Stack push " << (*Adj)->getBlockID() << "\n";
             Stack.push({ID, *Adj, Cond, true, InLoop, LoopBlks});
           }
           if (Blk->succ_size() == 2) {
             ++Adj;
             if (Adj->isReachable()) {
-              outs() << "Stack push " << (*Adj)->getBlockID() << "\n";
               Stack.push({ID, *Adj, Cond, false, InLoop, LoopBlks});
             }
           }
         } else if (Adj->isReachable()) {
-          outs() << "Stack push " << (*Adj)->getBlockID() << "\n";
           Stack.push({ID, *Adj, nullptr, false, InLoop, LoopBlks});
         }
         break;
