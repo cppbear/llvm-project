@@ -29,6 +29,7 @@ enum MyRecordType { ClassType, StructType, UnionType, EnumType };
 struct Application {
   std::string class_name;
   std::string signature;
+  bool is_direct;
   bool operator==(const Application &other) const {
     return class_name == other.class_name && signature == other.signature;
   }
@@ -306,7 +307,7 @@ public:
                                             std::string signature);
   json get_simple_class(std::string class_name);
   void get_all_applications(std::vector<Application> *applications);
-  json get_j(std::string class_name, std::string signature);
+  json get_j(Application application);
   std::string get_function_body(std::string class_name, std::string signature);
   std::vector<std::string> get_application_classes(std::string type);
 };

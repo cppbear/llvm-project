@@ -842,6 +842,9 @@ json FileContext::get_j(bool test_flag) {
   json file_j = get_file_j();
   j[file_path] = json::object();
   for (auto function : functions) {
+    // if (function.function_name == "main") {
+    //   std::cout << std::endl;
+    // }
     std::string class_function;
     if (function.class_name != "class") {
       class_function = function.class_name + "::" + function.function_name;
@@ -874,6 +877,21 @@ json FileContext::get_j(bool test_flag) {
     if (b == 0) {
       need_applications.push_back(function_application);
     }
+    std::vector<Application> need_function_applications =
+        gac_classes_and_functions.get_applications(function.class_name,
+                                                   function.signature);
+    for (auto need_function_application : need_function_applications) {
+      bool b = 0;
+      for (auto application : need_applications) {
+        if (application == need_function_application) {
+          b = 1;
+          break;
+        }
+      }
+      if (b == 0) {
+        need_applications.push_back(need_function_application);
+      }
+    }
     gac_classes_and_functions.get_all_applications(&need_applications);
     std::vector<std::string> used_classes;
     for (auto application : need_applications) {
@@ -894,8 +912,7 @@ json FileContext::get_j(bool test_flag) {
       }
       if (application.signature != "") {
         j[file_path][class_function]["focal"][function.signature].merge_patch(
-            gac_classes_and_functions.get_j(application.class_name,
-                                            application.signature));
+            gac_classes_and_functions.get_j(application));
       }
     }
   }
