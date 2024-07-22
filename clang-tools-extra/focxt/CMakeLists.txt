@@ -1,5 +1,5 @@
 set(LLVM_LINK_COMPONENTS support)
-set(CMAKE_BUILD_TYPE Debug)
+# set(CMAKE_BUILD_TYPE Debug)
 
 include(FetchContent)
 
