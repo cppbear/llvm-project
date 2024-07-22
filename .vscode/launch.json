@@ -7,49 +7,6 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "debug focxt",
-            "program": "${workspaceFolder}/build/bin/focxt",
-            "args": [
-                "--project",
-                "/home/abezbm/cmake_example",
-                "--build",
-                "/home/abezbm/cmake_example/build",
-            ],
-            // "args": [
-            //     "--project",
-            //     "/home/abezbm/brotli",
-            //     "--build",
-            //     "/home/abezbm/brotli/build",
-            // ],
-            // "args": [
-            //     "--project",
-            //     "/home/abezbm/zstd",
-            //     "--build",
-            //     "/home/abezbm/zstd/build-output",
-            // ],
-            // "args": [
-            //     "--project",
-            //     "/home/abezbm/bcrypt-1.1",
-            //     "--build",
-            //     "/home/abezbm/bcrypt-1.1/build",
-            // ],
-            // "args": [
-            //     "--project",
-            //     "/home/abezbm/jsoncpp",
-            //     "--build",
-            //     "/home/abezbm/jsoncpp/build",
-            // ],
-            // "args": [
-            //     "--project",
-            //     "/home/abezbm/nlohmann_json/json",
-            //     "--build",
-            //     "/home/abezbm/nlohmann_json/json/build",
-            // ],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
             "name": "Debug",
             "program": "build/debug/bin/brinfo",
             // "args": [

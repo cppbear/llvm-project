@@ -1,5 +1,4 @@
 set(LLVM_LINK_COMPONENTS support)
-set(CMAKE_BUILD_TYPE Debug)
 
 include(FetchContent)
 
@@ -8,10 +7,10 @@ FetchContent_MakeAvailable(json)
 
 add_clang_executable(focxt
 Focxt.cpp
-GetAllDefinition.cpp
+GetAllPath.cpp
 GetSignature.cpp
 GetAllContext.cpp
-# CoutContext.cpp
+CoutContext.cpp
   )
 
 target_link_libraries(focxt

@@ -11,7 +11,7 @@
                 "--build",
                 "build/debug",
                 "--target",
-                "focxt",
+                "brinfo",
             ],
             "group": {
                 "kind": "build",

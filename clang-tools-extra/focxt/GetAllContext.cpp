@@ -21,22 +21,30 @@
 #include <string>
 #include <vector>
 
-ClassesAndFunctions gac_classes_and_functions;
+AllContextPaths *gac_all_context_paths;
 std::string gac_project_path;
+std::string gac_compilation_database_path;
 std::string gac_file_path;
 std::vector<ADefine> gac_defines;
-std::vector<InFileFunction> gac_in_file_functions;
-std::vector<InFileAlias> gac_alias;
-std::vector<Application> gac_applications;
-// std::vector<Class> gac_classes;
-// std::vector<Function> gac_functions;
+std::vector<Class> gac_classes;
+std::vector<Function> gac_functions;
 
-void FileContext::set_global_vars() {
-  // ::gac_all_context_paths = all_context_paths;
+void OneFileContext::set_global_vars() {
+  ::gac_all_context_paths = all_context_paths;
+  ::gac_project_path = project_path;
+  ::gac_compilation_database_path = compilation_database_path;
   ::gac_file_path = file_path;
 }
 
-void FileContext::get_includes() {
+void applications_cout(std::vector<Application> &applications) {
+  std::cout << "applications:" << std::endl;
+  for (auto application : applications) {
+    std::cout << application.file_path << " " << application.class_name << " "
+              << application.signature << std::endl;
+  }
+}
+
+void OneFileContext::get_includes() {
   std::ifstream file(file_path);
   if (!file.is_open()) {
     std::cerr << "Unable to open the focal file!" << "\n";
@@ -49,14 +57,14 @@ void FileContext::get_includes() {
       if (start != std::string::npos && end != std::string::npos &&
           start < end) {
         std::string header = line.substr(start, end - start);
-        includes.push_back(header);
+        file_context.includes.push_back(header);
       }
     }
   }
   file.close();
 }
 
-void FileContext::get_test_macros() {
+void OneFileContext::get_test_macros() {
   std::ifstream file(file_path);
   if (!file.is_open()) {
     std::cerr << "Unable to open the focal file!" << "\n";
@@ -91,11 +99,9 @@ void FileContext::get_test_macros() {
         line.find(")") != std::string::npos) {
       key = line.substr(line.find_first_of(',') + 1,
                         line.find_first_of(')') - line.find_first_of(',') - 1);
-      if (key != "") {
-        key = key.substr(key.find_first_not_of(' '),
-                         key.find_last_of(' ') - key.find_first_not_of(' '));
-        is_inside_test_function = true;
-      }
+      key = key.substr(key.find_first_not_of(' '),
+                       key.find_last_of(' ') - key.find_first_not_of(' '));
+      is_inside_test_function = true;
     }
     if (is_inside_test_function) {
       if (n == 0 && line.find('{') == std::string::npos) {
@@ -112,7 +118,7 @@ void FileContext::get_test_macros() {
       }
       if (n == 0) {
         TestMacro a_test_macro = {key, a_macro};
-        test_macros.push_back(a_test_macro);
+        file_context.test_macros.push_back(a_test_macro);
         is_inside_test_function = false;
         a_macro = "";
         key = "";
@@ -171,16 +177,15 @@ public:
   }
 };
 
-void FileContext::get_defines() {
+void OneFileContext::get_defines() {
   ::gac_defines.clear();
   Tool.run(newFrontendActionFactory<DefineGeterFrontendAction>().get());
-  defines = ::gac_defines;
+  file_context.defines = ::gac_defines;
 }
 
 class GlobalVarMatchFinder : public MatchFinder::MatchCallback {
 private:
   std::vector<GlobalVar> global_vars;
-  std::vector<Application> applications;
   std::string focal_path;
 
 public:
@@ -208,8 +213,6 @@ public:
             } else {
               global_var.its_namespace = namespaceDecl->getNameAsString() +
                                          "::" + global_var.its_namespace;
-              global_var.its_namespace = namespaceDecl->getNameAsString() +
-                                         "::" + global_var.its_namespace;
             }
           }
           decl_context = decl_context->getParent();
@@ -234,108 +237,81 @@ public:
         }
         global_var.global_var = std::string(srcText_str);
         QualType qualType = varDecl->getType();
-        // if (qualType->isReferenceType()) {
-        //   qualType = qualType.getNonReferenceType();
-        // }
-        // qualType = qualType.getUnqualifiedType();
-        // qualType = qualType.getNonReferenceType();
-        // qualType = qualType.getCanonicalType();
+        if (qualType->isReferenceType()) {
+          qualType = qualType.getNonReferenceType();
+        }
+        qualType = qualType.getUnqualifiedType();
+        qualType = qualType.getCanonicalType();
         // const clang::Type *typePtr = qualType.getTypePtr();
         // while (const TypedefType *typedefType =
         //            dyn_cast<TypedefType>(typePtr)) {
         //   const TypedefNameDecl *typedefDecl = typedefType->getDecl();
         //   qualType = typedefDecl->getUnderlyingType();
         // }
-        std::vector<std::string> types =
-            gac_classes_and_functions.get_application_classes(
-                qualType.getAsString());
-        for (auto type : types) {
-          if (gac_classes_and_functions.has_class(type)) {
+        std::string class_name = qualType.getAsString();
+        if (gac_all_context_paths->hasClass(class_name)) {
+          std::vector<std::pair<std::string, std::string>> need_constructors =
+              gac_all_context_paths->getClassConstructor(class_name);
+          for (int i = 0; i < need_constructors.size(); i++) {
+            std::string function_name = class_name;
+            std::string signature = need_constructors[i].first;
+            std::string file_path = need_constructors[i].second;
             Application application;
-            application.class_name = type;
-            application.signature = "";
-            applications.push_back(application);
-            std::vector<std::string> need_constructors =
-                gac_classes_and_functions.get_constructors(type);
-            for (int i = 0; i < need_constructors.size(); i++) {
-              Application application;
-              application.class_name = type;
-              application.signature = need_constructors[i];
-              applications.push_back(application);
-            }
-            std::string need_destructor =
-                gac_classes_and_functions.get_destructor(type);
-            if (need_destructor != "class") {
-              Application application;
-              application.class_name = type;
-              application.signature = need_destructor;
-              applications.push_back(application);
-            }
+            application.file_path = file_path;
+            application.class_name = class_name;
+            application.signature = signature;
+            global_var.applications.push_back(application);
+          }
+          std::pair<std::string, std::string> need_destructor =
+              gac_all_context_paths->getClassDestructor(class_name);
+          if (need_destructor.first != "class") {
+            std::string function_name = "~" + class_name;
+            std::string signature = need_destructor.first;
+            std::string file_path = need_destructor.second;
+            Application application;
+            application.file_path = file_path;
+            application.class_name = class_name;
+            application.signature = signature;
+            global_var.applications.push_back(application);
           }
         }
-        // Application application;
-        // application.class_name = class_name;
-        // application.signature = "";
-        // applications.push_back(application);
-        // if (gac_classes_and_functions.has_class(class_name)) {
-        //   std::vector<std::string> need_constructors =
-        //       gac_classes_and_functions.get_constructors(class_name);
-        //   for (int i = 0; i < need_constructors.size(); i++) {
-        //     Application application;
-        //     application.class_name = class_name;
-        //     application.signature = need_constructors[i];
-        //     applications.push_back(application);
-        //   }
-        //   std::string need_destructor =
-        //       gac_classes_and_functions.get_destructor(class_name);
-        //   if (need_destructor != "class") {
-        //     Application application;
-        //     application.class_name = class_name;
-        //     application.signature = need_destructor;
-        //     applications.push_back(application);
-        //   }
-        // }
         if (varDecl->hasInit()) {
           const Expr *Expr = varDecl->getInit();
           if (Expr) {
             if (const CallExpr *Call = dyn_cast<CallExpr>(Expr)) {
               const FunctionDecl *Callee = Call->getDirectCallee();
               if (Callee) {
-                Callee = Callee->getCanonicalDecl();
-                if (Callee->getPrimaryTemplate()) {
-                  Callee = Callee->getPrimaryTemplate()->getTemplatedDecl();
-                }
-                // Callee->dump();
-                if (Callee->getTemplateInstantiationPattern()) {
-                  Callee = Callee->getTemplateInstantiationPattern();
-                  // InstantiatedCallee->dump();
-                }
                 if (Callee->isCXXClassMember()) {
                   const CXXRecordDecl *ParentClass =
-                      dyn_cast<CXXRecordDecl>(Callee->getParent())
-                          ->getCanonicalDecl();
+                      dyn_cast<CXXRecordDecl>(Callee->getParent());
                   std::string class_name = ParentClass->getNameAsString();
                   std::string function_name = Callee->getNameAsString();
                   std::string signature = get_signature(Callee);
                   // std::cout << class_name << std::endl;
                   // std::cout << signature << std::endl;
-                  if (gac_classes_and_functions.has_function(class_name,
-                                                             signature)) {
+                  if (gac_all_context_paths->hasClassMethodPath(class_name,
+                                                                signature)) {
+                    std::string file_path =
+                        gac_all_context_paths->getClassMethodPath(class_name,
+                                                                  signature);
                     Application application;
+                    application.file_path = file_path;
                     application.class_name = class_name;
                     application.signature = signature;
-                    applications.push_back(application);
+                    global_var.applications.push_back(application);
                   }
                 } else {
                   std::string function_name = Callee->getNameAsString();
                   std::string signature = get_signature(Callee);
                   // std::cout << signature << std::endl;
-                  if (gac_classes_and_functions.has_function("class",
-                                                             signature)) {
+                  if (gac_all_context_paths->hasFunctionPath(signature)) {
+                    std::string file_path =
+                        gac_all_context_paths->getFunctionPath(signature);
                     Application application;
+                    application.file_path = file_path;
                     application.class_name = "class";
                     application.signature = signature;
-                    applications.push_back(application);
+                    global_var.applications.push_back(application);
                   }
                 }
               }
@@ -358,117 +334,133 @@ public:
   }
 
   const std::vector<GlobalVar> get_vars() { return global_vars; };
-  const std::vector<Application> get_applications() { return applications; }
 };
 
 DeclarationMatcher globalvarMatcher =
     varDecl(hasGlobalStorage()).bind("globalvars");
 
-void FileContext::get_global_vars() {
+void OneFileContext::get_global_vars() {
   GlobalVarMatchFinder Printer(file_path);
   MatchFinder Finder;
   Finder.addMatcher(globalvarMatcher, &Printer);
   Tool.run(newFrontendActionFactory(&Finder).get());
-  global_vars = Printer.get_vars();
-  std::vector<Application> global_vars_applications =
-      Printer.get_applications();
-  for (auto application : global_vars_applications) {
-    applications.push_back(application);
+  file_context.global_vars = Printer.get_vars();
+}
+
+class StmtVarFunctionVisitor
+    : public RecursiveASTVisitor<StmtVarFunctionVisitor> {
+private:
+  ASTContext *Context;
+  std::vector<Application> applications;
+
+public:
+  StmtVarFunctionVisitor(ASTContext *Context) : Context(Context) {}
+  bool VisitCallExpr(CallExpr *Call);
+  bool VisitVarDecl(VarDecl *Var);
+  std::vector<Application> get_applications();
+};
+
+bool StmtVarFunctionVisitor::VisitCallExpr(CallExpr *Call) {
+  const FunctionDecl *Callee = Call->getDirectCallee();
+  if (Callee) {
+    if (Callee->isCXXClassMember()) {
+      // std::string file_path;
+      // std::string class_name;
+      // std::string function_name;
+      // std::string signature;
+      const CXXRecordDecl *ParentClass =
+          dyn_cast<CXXRecordDecl>(Callee->getParent());
+      std::string class_name = ParentClass->getNameAsString();
+      std::string function_name = Callee->getNameAsString();
+      std::string signature = get_signature(Callee);
+      // std::cout << "Class " << class_name << " Method " << function_name
+      //           << " Call" << std::endl;
+      // std::cout << class_name << std::endl;
+      // std::cout << signature << std::endl;
+      if (gac_all_context_paths->hasClassMethodPath(class_name, signature)) {
+        std::string file_path =
+            gac_all_context_paths->getClassMethodPath(class_name, signature);
+        Application application;
+        application.file_path = file_path;
+        application.class_name = class_name;
+        application.signature = signature;
+        applications.push_back(application);
+      }
+    } else {
+      // std::string file_path;
+      // std::string class_name;
+      // std::string function_name;
+      // std::string signature;
+      std::string function_name = Callee->getNameAsString();
+      // std::cout << "Function Call " << function_name << std::endl;
+      std::string signature = get_signature(Callee);
+      // std::cout << signature << std::endl;
+      if (gac_all_context_paths->hasFunctionPath(signature)) {
+        std::string file_path =
+            gac_all_context_paths->getFunctionPath(signature);
+        Application application;
+        application.file_path = file_path;
+        application.class_name = "class";
+        application.signature = signature;
+        applications.push_back(application);
+      }
+    }
   }
+  return true;
+}
+
+bool StmtVarFunctionVisitor::VisitVarDecl(VarDecl *Var) {
+  if (Var) {
+    QualType qualType = Var->getType();
+    if (qualType->isReferenceType()) {
+      qualType = qualType.getNonReferenceType();
+    }
+    qualType = qualType.getUnqualifiedType();
+    qualType = qualType.getCanonicalType();
+    // const clang::Type *typePtr = qualType.getTypePtr();
+    // while (const TypedefType *typedefType = dyn_cast<TypedefType>(typePtr)) {
+    //   const TypedefNameDecl *typedefDecl = typedefType->getDecl();
+    //   qualType = typedefDecl->getUnderlyingType();
+    // }
+    std::string class_name = qualType.getAsString();
+    if (gac_all_context_paths->hasClass(class_name)) {
+      std::vector<std::pair<std::string, std::string>> need_constructors =
+          gac_all_context_paths->getClassConstructor(class_name);
+      for (int i = 0; i < need_constructors.size(); i++) {
+        std::string function_name = class_name;
+        std::string signature = need_constructors[i].first;
+        std::string file_path = need_constructors[i].second;
+        Application application;
+        application.file_path = file_path;
+        application.class_name = class_name;
+        application.signature = signature;
+        applications.push_back(application);
+      }
+      std::pair<std::string, std::string> need_destructor =
+          gac_all_context_paths->getClassDestructor(class_name);
+      if (need_destructor.first != "class") {
+        std::string function_name = "~" + class_name;
+        std::string signature = need_destructor.first;
+        std::string file_path = need_destructor.second;
+        Application application;
+        application.file_path = file_path;
+        application.class_name = class_name;
+        application.signature = signature;
+        applications.push_back(application);
+      }
+    }
+  }
+  return true;
+}
+
+std::vector<Application> StmtVarFunctionVisitor::get_applications() {
+  return applications;
 }
 
 class MethodFunctionVisitor
     : public RecursiveASTVisitor<MethodFunctionVisitor> {
 public:
   explicit MethodFunctionVisitor(ASTContext *Context) : Context(Context) {}
-
-  bool VisitTypeAliasDecl(TypeAliasDecl *TypeAlias) {
-    clang::SourceLocation loc = TypeAlias->getLocation();
-    clang::SourceManager &SM = Context->getSourceManager();
-    clang::PresumedLoc presumedLoc = SM.getPresumedLoc(loc);
-    std::string file_path = presumedLoc.getFilename();
-    if (file_path.find(gac_project_path) != std::string::npos) {
-      DeclContext *ParentContext = TypeAlias->getDeclContext();
-      if (!isa<CXXRecordDecl>(ParentContext)) {
-        InFileAlias alias;
-        alias.alias_name = TypeAlias->getNameAsString();
-        alias.base_name = TypeAlias->getUnderlyingType().getAsString();
-        const DeclContext *context = TypeAlias->getDeclContext();
-        bool b = 0;
-        while (context) {
-          if (const NamespaceDecl *namespaceDecl =
-                  dyn_cast<NamespaceDecl>(context)) {
-            b = 1;
-            if (alias.its_namespace == "") {
-              alias.its_namespace = namespaceDecl->getNameAsString();
-            } else {
-              alias.its_namespace =
-                  namespaceDecl->getNameAsString() + "::" + alias.its_namespace;
-            }
-          }
-          context = context->getParent();
-        }
-        if (b == 0) {
-          alias.its_namespace = "";
-        }
-        // std::cout << alias.alias_name << " " << alias.base_name << std::endl;
-        gac_alias.push_back(alias);
-        // QualType qualType = TypeAlias->getUnderlyingType();
-        // qualType = qualType.getUnqualifiedType();
-        // qualType = qualType.getNonReferenceType();
-        // qualType = qualType.getCanonicalType();
-        std::vector<std::string> types =
-            gac_classes_and_functions.get_application_classes(alias.base_name);
-        for (auto type : types) {
-          if (gac_classes_and_functions.has_class(type)) {
-            Application application;
-            application.class_name = type;
-            application.signature = "";
-            gac_applications.push_back(application);
-            std::vector<std::string> need_constructors =
-                gac_classes_and_functions.get_constructors(type);
-            for (int i = 0; i < need_constructors.size(); i++) {
-              Application application;
-              application.class_name = type;
-              application.signature = need_constructors[i];
-              gac_applications.push_back(application);
-            }
-            std::string need_destructor =
-                gac_classes_and_functions.get_destructor(type);
-            if (need_destructor != "class") {
-              Application application;
-              application.class_name = type;
-              application.signature = need_destructor;
-              gac_applications.push_back(application);
-            }
-          }
-        }
-        // Application application;
-        // application.class_name = class_name;
-        // application.signature = "";
-        // gac_applications.push_back(application);
-        // if (gac_classes_and_functions.has_class(class_name)) {
-        //   std::vector<std::string> need_constructors =
-        //       gac_classes_and_functions.get_constructors(class_name);
-        //   for (int i = 0; i < need_constructors.size(); i++) {
-        //     Application application;
-        //     application.class_name = class_name;
-        //     application.signature = need_constructors[i];
-        //     gac_applications.push_back(application);
-        //   }
-        //   std::string need_destructor =
-        //       gac_classes_and_functions.get_destructor(class_name);
-        //   if (need_destructor != "class") {
-        //     Application application;
-        //     application.class_name = class_name;
-        //     application.signature = need_destructor;
-        //     gac_applications.push_back(application);
-        //   }
-        // }
-      }
-    }
-    return true;
-  }
 
   bool VisitFunctionDecl(FunctionDecl *Func) {
     if (Func->isThisDeclarationADefinition()) {
@@ -477,21 +469,11 @@ public:
       clang::PresumedLoc presumedLoc = SM.getPresumedLoc(loc);
       std::string file_path = presumedLoc.getFilename();
       if (file_path == gac_file_path) {
-        auto CanonicalFunc = Func->getCanonicalDecl();
-        if (CanonicalFunc->getPrimaryTemplate()) {
-          CanonicalFunc =
-              CanonicalFunc->getPrimaryTemplate()->getTemplatedDecl();
-        }
-        // Callee->dump();
-        if (CanonicalFunc->getTemplateInstantiationPattern()) {
-          CanonicalFunc = CanonicalFunc->getTemplateInstantiationPattern();
-          // InstantiatedCallee->dump();
-        }
-        if (!isa<CXXMethodDecl>(CanonicalFunc)) {
-          std::string function_name = CanonicalFunc->getNameAsString();
-          std::string signature = get_signature(CanonicalFunc);
-          if (gac_classes_and_functions.has_function("class", signature)) {
-            InFileFunction in_file_function;
+        if (!isa<CXXMethodDecl>(Func)) {
+          std::string function_name = Func->getNameAsString();
+          std::string signature = get_signature(Func);
+          if (gac_all_context_paths->hasFunctionPath(signature)) {
+            Function function;
             // std::string function_name;
             // std::string signature;
             // std::string function_body;
@@ -501,44 +483,274 @@ public:
             // std::string its_namespace;
             // std::cout << "Function Declaration " << function_name <<
             // std::endl;
-            in_file_function.class_name = "class";
-            in_file_function.function_name = function_name;
-            in_file_function.signature = signature;
-            gac_in_file_functions.push_back(in_file_function);
+            function.function_name = function_name;
+            function.signature = signature;
+            const SourceManager &sourceManager = Context->getSourceManager();
+            SourceRange srcRange_r = Func->getReturnTypeSourceRange();
+            srcRange_r.setEnd(Lexer::getLocForEndOfToken(
+                srcRange_r.getEnd(), 0, sourceManager, Context->getLangOpts()));
+            bool Invalid = false;
+            StringRef srcText_r = Lexer::getSourceText(
+                CharSourceRange::getTokenRange(srcRange_r), sourceManager,
+                Context->getLangOpts(), &Invalid);
+            function.return_type = std::string(srcText_r);
+            for (const ParmVarDecl *param : Func->parameters()) {
+              SourceRange srcRange_p = param->getSourceRange();
+              srcRange_p.setEnd(Lexer::getLocForEndOfToken(
+                  srcRange_p.getEnd(), 0, sourceManager,
+                  Context->getLangOpts()));
+              StringRef srcText_p = Lexer::getSourceText(
+                  CharSourceRange::getTokenRange(srcRange_p), sourceManager,
+                  Context->getLangOpts(), &Invalid);
+              std::string srcText_str = std::string(srcText_p);
+              if (srcText_str[srcText_str.length() - 1] == ')' ||
+                  srcText_str[srcText_str.length() - 1] == ',' ||
+                  srcText_str[srcText_str.length() - 1] == ';') {
+                srcText_str.erase(srcText_str.length() - 1);
+              }
+              function.parameters.push_back(srcText_str);
+            }
+            SourceRange srcRange = Func->getSourceRange();
+            srcRange.setEnd(Lexer::getLocForEndOfToken(
+                srcRange.getEnd(), 0, sourceManager, Context->getLangOpts()));
+            StringRef srcText = Lexer::getSourceText(
+                CharSourceRange::getTokenRange(srcRange), sourceManager,
+                Context->getLangOpts(), &Invalid);
+            function.function_body = srcText;
+            const DeclContext *context = Func->getDeclContext();
+            bool b = 0;
+            while (context) {
+              if (const NamespaceDecl *namespaceDecl =
+                      dyn_cast<NamespaceDecl>(context)) {
+                b = 1;
+                if (function.its_namespace == "") {
+                  function.its_namespace = namespaceDecl->getNameAsString();
+                } else {
+                  function.its_namespace = namespaceDecl->getNameAsString() +
+                                           "::" + function.its_namespace;
+                }
+              }
+              context = context->getParent();
+            }
+            if (b == 0) {
+              function.its_namespace = "";
+            }
+            StmtVarFunctionVisitor function_stmt_visitor(Context);
+            function_stmt_visitor.TraverseStmt(Func->getBody());
+            function.applications = function_stmt_visitor.get_applications();
+            gac_functions.push_back(function);
           }
         } else {
           const CXXRecordDecl *ParentClass =
-              dyn_cast<CXXRecordDecl>(CanonicalFunc->getParent())
-                  ->getCanonicalDecl();
+              dyn_cast<CXXRecordDecl>(Func->getParent());
           std::string class_name = ParentClass->getNameAsString();
-          if (gac_classes_and_functions.has_class(class_name)) {
-            // std::cout << "Class Declaration " << class_name <<
-            // std::endl;
-            std::string signature = get_signature(CanonicalFunc);
-            if (gac_classes_and_functions.has_function(class_name, signature)) {
-              if (isa<CXXConstructorDecl>(CanonicalFunc)) {
+          if (gac_all_context_paths->hasClass(class_name)) {
+            // std::cout << "Class Declaration " << class_name << std::endl;
+            bool b = 0;
+            for (int i = 0; i < gac_classes.size(); i++) {
+              if (class_name == gac_classes[i].class_name) {
+                b = 1;
+                break;
+              }
+            }
+            if (b == 0) {
+              // std::string class_name;
+              // std::string base_class;
+              // std::vector<Constructor> constructors;
+              // Destructor destructor;
+              // std::vector<std::string> fields;
+              // std::vector<Method> methods;
+              // std::string its_namespace;
+              Class a_class;
+              a_class.class_name = class_name;
+              if (ParentClass->getNumBases() > 0) {
+                a_class.base_class =
+                    ParentClass->bases_begin()->getType().getAsString();
+              }
+              const DeclContext *context = ParentClass->getDeclContext();
+              bool b = 0;
+              while (context) {
+                if (const NamespaceDecl *namespaceDecl =
+                        dyn_cast<NamespaceDecl>(context)) {
+                  b = 1;
+                  if (a_class.its_namespace == "") {
+                    a_class.its_namespace = namespaceDecl->getNameAsString();
+                  } else {
+                    a_class.its_namespace = namespaceDecl->getNameAsString() +
+                                            "::" + a_class.its_namespace;
+                  }
+                }
+                context = context->getParent();
+              }
+              if (b == 0) {
+                a_class.its_namespace = "";
+              }
+              int i = 0;
+              for (const auto *decl : ParentClass->decls()) {
+                if (const CXXRecordDecl *Record =
+                        dyn_cast<CXXRecordDecl>(decl)) {
+                  if (i == 0) {
+                    continue;
+                  }
+                  const SourceManager &sourceManager =
+                      Context->getSourceManager();
+                  SourceRange srcRange = Record->getSourceRange();
+                  srcRange.setEnd(Lexer::getLocForEndOfToken(
+                      srcRange.getEnd(), 0, sourceManager,
+                      Context->getLangOpts()));
+                  bool Invalid = false;
+                  StringRef srcText = Lexer::getSourceText(
+                      CharSourceRange::getTokenRange(srcRange), sourceManager,
+                      Context->getLangOpts(), &Invalid);
+                  // std::cout << std::string(srcText) << std::endl;
+                  std::string srcText_str = std::string(srcText);
+                  if (srcText_str[srcText_str.length() - 1] == ';') {
+                    srcText_str.erase(srcText_str.length() - 1);
+                  }
+                  if (Record->isClass()) {
+                    if (srcText.find('{') != std::string::npos) {
+                      srcText_str.erase(srcText_str.find_first_of('{'));
+                    }
+                    a_class.fields.push_back(srcText_str);
+                  } else {
+                    a_class.fields.push_back(srcText_str);
+                  }
+                } else if (const FieldDecl *Field = dyn_cast<FieldDecl>(decl)) {
+                  const SourceManager &sourceManager =
+                      Context->getSourceManager();
+                  SourceRange srcRange = Field->getSourceRange();
+                  srcRange.setEnd(Lexer::getLocForEndOfToken(
+                      srcRange.getEnd(), 0, sourceManager,
+                      Context->getLangOpts()));
+                  bool Invalid = false;
+                  StringRef srcText = Lexer::getSourceText(
+                      CharSourceRange::getTokenRange(srcRange), sourceManager,
+                      Context->getLangOpts(), &Invalid);
+                  // std::cout << std::string(srcText) << std::endl;
+                  std::string srcText_str = std::string(srcText);
+                  if (srcText_str[srcText_str.length() - 1] == ';') {
+                    srcText_str.erase(srcText_str.length() - 1);
+                  }
+                  a_class.fields.push_back(srcText_str);
+                } else if (const EnumDecl *Enum = dyn_cast<EnumDecl>(decl)) {
+                  const SourceManager &sourceManager =
+                      Context->getSourceManager();
+                  SourceRange srcRange = Enum->getSourceRange();
+                  srcRange.setEnd(Lexer::getLocForEndOfToken(
+                      srcRange.getEnd(), 0, sourceManager,
+                      Context->getLangOpts()));
+                  bool Invalid = false;
+                  StringRef srcText = Lexer::getSourceText(
+                      CharSourceRange::getTokenRange(srcRange), sourceManager,
+                      Context->getLangOpts(), &Invalid);
+                  // std::cout << std::string(srcText) << std::endl;
+                  std::string srcText_str = std::string(srcText);
+                  if (srcText_str[srcText_str.length() - 1] == ';') {
+                    srcText_str.erase(srcText_str.length() - 1);
+                  }
+                  a_class.fields.push_back(srcText_str);
+                }
+                i++;
+              }
+              i = 1;
+              while (i < a_class.fields.size()) {
+                if (a_class.fields[i].substr(
+                        0, a_class.fields[i].find_last_of('}') + 1) ==
+                    a_class.fields[i - 1].substr(
+                        0, a_class.fields[i - 1].find_last_of('}') + 1)) {
+                  a_class.fields.erase(a_class.fields.begin() + i - 1);
+                } else {
+                  i++;
+                }
+              }
+              i = 0;
+              while (i < a_class.fields.size()) {
+                if (a_class.fields[i] == "union" ||
+                    a_class.fields[i] == "struct" ||
+                    a_class.fields[i] == "class" ||
+                    a_class.fields[i] == "enum") {
+                  a_class.fields.erase(a_class.fields.begin() + i);
+                } else {
+                  i++;
+                }
+              }
+              gac_classes.push_back(a_class);
+            }
+            int i = 0;
+            while (i < gac_classes.size()) {
+              if (class_name == gac_classes[i].class_name) {
+                break;
+              }
+              i++;
+            }
+            std::string signature = get_signature(Func);
+            if (gac_all_context_paths->hasClassMethodPath(class_name,
+                                                          signature)) {
+              if (isa<CXXConstructorDecl>(Func)) {
                 // std::cout << "Constructor Declaration " << class_name
                 //           << std::endl;
                 // std::string signature;
                 // std::string function_body;
                 // std::vector<std::string> parameters;
                 // std::vector<Application> applications;
-                InFileFunction in_file_function;
-                in_file_function.class_name = class_name;
-                in_file_function.function_name = class_name;
-                in_file_function.signature = signature;
-                gac_in_file_functions.push_back(in_file_function);
-              } else if (isa<CXXDestructorDecl>(CanonicalFunc)) {
+                Constructor constructor;
+                const SourceManager &sourceManager =
+                    Context->getSourceManager();
+                bool Invalid = false;
+                constructor.signature = signature;
+                for (const ParmVarDecl *param : Func->parameters()) {
+                  SourceRange srcRange_p = param->getSourceRange();
+                  srcRange_p.setEnd(Lexer::getLocForEndOfToken(
+                      srcRange_p.getEnd(), 0, sourceManager,
+                      Context->getLangOpts()));
+                  StringRef srcText_p = Lexer::getSourceText(
+                      CharSourceRange::getTokenRange(srcRange_p), sourceManager,
+                      Context->getLangOpts(), &Invalid);
+                  std::string srcText_str = std::string(srcText_p);
+                  if (srcText_str[srcText_str.length() - 1] == ')' ||
+                      srcText_str[srcText_str.length() - 1] == ',' ||
+                      srcText_str[srcText_str.length() - 1] == ';') {
+                    srcText_str.erase(srcText_str.length() - 1);
+                  }
+                  constructor.parameters.push_back(srcText_str);
+                }
+                SourceRange srcRange = Func->getSourceRange();
+                srcRange.setEnd(Lexer::getLocForEndOfToken(
+                    srcRange.getEnd(), 0, sourceManager,
+                    Context->getLangOpts()));
+                StringRef srcText = Lexer::getSourceText(
+                    CharSourceRange::getTokenRange(srcRange), sourceManager,
+                    Context->getLangOpts(), &Invalid);
+                constructor.function_body = srcText;
+                StmtVarFunctionVisitor function_stmt_visitor(Context);
+                function_stmt_visitor.TraverseStmt(Func->getBody());
+                constructor.applications =
+                    function_stmt_visitor.get_applications();
+                gac_classes[i].constructors.push_back(constructor);
+              } else if (isa<CXXDestructorDecl>(Func)) {
                 // std::string signature;
                 // std::string function_body;
                 // std::vector<Application> applications;
                 // std::cout << "Destructor Declaration " << class_name
                 //           << std::endl;
-                InFileFunction in_file_function;
-                in_file_function.class_name = class_name;
-                in_file_function.function_name = "~" + class_name;
-                in_file_function.signature = signature;
-                gac_in_file_functions.push_back(in_file_function);
+                Destructor destructor;
+                const SourceManager &sourceManager =
+                    Context->getSourceManager();
+                SourceRange srcRange = Func->getSourceRange();
+                srcRange.setEnd(Lexer::getLocForEndOfToken(
+                    srcRange.getEnd(), 0, sourceManager,
+                    Context->getLangOpts()));
+                bool Invalid = false;
+                StringRef srcText = Lexer::getSourceText(
+                    CharSourceRange::getTokenRange(srcRange), sourceManager,
+                    Context->getLangOpts(), &Invalid);
+                destructor.signature = signature;
+                destructor.function_body = srcText;
+                StmtVarFunctionVisitor function_stmt_visitor(Context);
+                function_stmt_visitor.TraverseStmt(Func->getBody());
+                destructor.applications =
+                    function_stmt_visitor.get_applications();
+                gac_classes[i].destructor = destructor;
               } else {
                 // std::string method_name;
                 // std::string signature;
@@ -550,11 +762,47 @@ public:
                 std::string function_name = Func->getNameAsString();
                 // std::cout << "Method Declaration " << function_name
                 //           << std::endl;
-                InFileFunction in_file_function;
-                in_file_function.class_name = class_name;
-                in_file_function.function_name = function_name;
-                in_file_function.signature = signature;
-                gac_in_file_functions.push_back(in_file_function);
+                method.method_name = function_name;
+                method.signature = signature;
+                const SourceManager &sourceManager =
+                    Context->getSourceManager();
+                SourceRange srcRange_r = Func->getReturnTypeSourceRange();
+                srcRange_r.setEnd(Lexer::getLocForEndOfToken(
+                    srcRange_r.getEnd(), 0, sourceManager,
+                    Context->getLangOpts()));
+                bool Invalid = false;
+                StringRef srcText_r = Lexer::getSourceText(
+                    CharSourceRange::getTokenRange(srcRange_r), sourceManager,
+                    Context->getLangOpts(), &Invalid);
+                method.return_type = std::string(srcText_r);
+                for (const ParmVarDecl *param : Func->parameters()) {
+                  SourceRange srcRange_p = param->getSourceRange();
+                  srcRange_p.setEnd(Lexer::getLocForEndOfToken(
+                      srcRange_p.getEnd(), 0, sourceManager,
+                      Context->getLangOpts()));
+                  StringRef srcText_p = Lexer::getSourceText(
+                      CharSourceRange::getTokenRange(srcRange_p), sourceManager,
+                      Context->getLangOpts(), &Invalid);
+                  std::string srcText_str = std::string(srcText_p);
+                  if (srcText_str[srcText_str.length() - 1] == ')' ||
+                      srcText_str[srcText_str.length() - 1] == ',' ||
+                      srcText_str[srcText_str.length() - 1] == ';') {
+                    srcText_str.erase(srcText_str.length() - 1);
+                  }
+                  method.parameters.push_back(srcText_str);
+                }
+                SourceRange srcRange = Func->getSourceRange();
+                srcRange.setEnd(Lexer::getLocForEndOfToken(
+                    srcRange.getEnd(), 0, sourceManager,
+                    Context->getLangOpts()));
+                StringRef srcText = Lexer::getSourceText(
+                    CharSourceRange::getTokenRange(srcRange), sourceManager,
+                    Context->getLangOpts(), &Invalid);
+                method.function_body = srcText;
+                StmtVarFunctionVisitor function_stmt_visitor(Context);
+                function_stmt_visitor.TraverseStmt(Func->getBody());
+                method.applications = function_stmt_visitor.get_applications();
+                gac_classes[i].methods.push_back(method);
               }
             }
           }
@@ -588,614 +836,191 @@ public:
   }
 };
 
-void FileContext::get_context() {
-  ::gac_in_file_functions.clear();
-  ::gac_alias.clear();
-  ::gac_applications.clear();
+void OneFileContext::get_context() {
+  ::gac_classes.clear();
+  ::gac_functions.clear();
   Tool.run(newFrontendActionFactory<MethodFunctionAction>().get());
-  functions = gac_in_file_functions;
-  alias = gac_alias;
-  for (auto application : gac_applications) {
-    applications.push_back(application);
+  file_context.classes = ::gac_classes;
+  file_context.functions = ::gac_functions;
+}
+
+FileContext OneFileContext::get_file_context() { return file_context; }
+
+Class FileContext::get_simple_class(std::string class_name) {
+  for (auto a_class : classes) {
+    if (a_class.class_name == class_name) {
+      Class ret;
+      ret.class_name = a_class.class_name;
+      ret.base_class = a_class.base_class;
+      ret.fields = a_class.fields;
+      ret.its_namespace = a_class.its_namespace;
+      for (auto constructor : a_class.constructors) {
+        Constructor new_constructor;
+        new_constructor.signature = constructor.signature;
+        ret.constructors.push_back(new_constructor);
+      }
+      Destructor new_destructor;
+      new_destructor.signature = a_class.destructor.signature;
+      ret.destructor = new_destructor;
+      for (auto method : a_class.methods) {
+        Method new_method;
+        new_method.signature = method.signature;
+        ret.methods.push_back(new_method);
+      }
+      return ret;
+    }
   }
 }
 
-// Class FileContext::get_simple_class(std::string class_name) {
-//   for (auto a_class : classes) {
-//     if (a_class.class_name == class_name) {
-//       Class ret;
-//       ret.class_name = a_class.class_name;
-//       ret.base_class = a_class.base_class;
-//       ret.fields = a_class.fields;
-//       ret.its_namespace = a_class.its_namespace;
-//       for (auto constructor : a_class.constructors) {
-//         Constructor new_constructor;
-//         new_constructor.signature = constructor.signature;
-//         ret.constructors.push_back(new_constructor);
-//       }
-//       Destructor new_destructor;
-//       new_destructor.signature = a_class.destructor.signature;
-//       ret.destructor = new_destructor;
-//       for (auto method : a_class.methods) {
-//         Method new_method;
-//         new_method.signature = method.signature;
-//         ret.methods.push_back(new_method);
-//       }
-//       return ret;
-//     }
-//   }
-// }
+bool FileContext::class_has_constructor(std::string class_name,
+                                        std::string signature) {
+  for (auto a_class : classes) {
+    if (a_class.class_name == class_name) {
+      for (auto constructor : a_class.constructors) {
+        if (constructor.signature == signature) {
+          return 1;
+        }
+      }
+      return 0;
+    }
+  }
+  return 0;
+}
 
-// bool FileContext::class_has_constructor(std::string class_name,
-//                                         std::string signature) {
-//   for (auto a_class : classes) {
-//     if (a_class.class_name == class_name) {
-//       for (auto constructor : a_class.constructors) {
-//         if (constructor.signature == signature) {
-//           return 1;
-//         }
-//       }
-//       return 0;
-//     }
-//   }
-//   return 0;
-// }
-
-// Constructor FileContext::class_get_constructor(std::string class_name,
-//                                                std::string signature) {
-//   for (auto a_class : classes) {
-//     if (a_class.class_name == class_name) {
-//       for (auto constructor : a_class.constructors) {
-//         if (constructor.signature == signature) {
-//           return constructor;
-//         }
-//       }
-//     }
-//   }
-// }
-
-// bool FileContext::class_has_destructor(std::string class_name,
-//                                        std::string signature) {
-//   for (auto a_class : classes) {
-//     if (a_class.class_name == class_name) {
-//       if (a_class.destructor.signature == signature) {
-//         return 1;
-//       }
-//       return 0;
-//     }
-//   }
-//   return 0;
-// }
-// Destructor FileContext::class_get_destructor(std::string class_name,
-//                                              std::string signature) {
-//   for (auto a_class : classes) {
-//     if (a_class.class_name == class_name) {
-//       return a_class.destructor;
-//     }
-//   }
-// }
-
-// bool FileContext::class_has_method(std::string class_name,
-//                                    std::string signature) {
-//   for (auto a_class : classes) {
-//     if (a_class.class_name == class_name) {
-//       for (auto method : a_class.methods) {
-//         if (method.signature == signature) {
-//           return 1;
-//         }
-//       }
-//       return 0;
-//     }
-//   }
-//   return 0;
-// }
-// Method FileContext::class_get_method(std::string class_name,
-//                                      std::string signature) {
-//   for (auto a_class : classes) {
-//     if (a_class.class_name == class_name) {
-//       for (auto method : a_class.methods) {
-//         if (method.signature == signature) {
-//           return method;
-//         }
-//       }
-//     }
-//   }
-// }
-
-// Function FileContext::get_function(std::string signature) {
-//   for (auto function : functions) {
-//     if (function.signature == signature) {
-//       return function;
-//     }
-//   }
-// }
-
-// std::vector<TestMacro>
-// FileContext::get_may_test_macros(std::string class_name,
-//                                  std::string function_name) {
-//   std::vector<TestMacro> ret;
-//   for (auto a_test_macro : test_macros) {
-//     if (class_name == "class") {
-//       if (a_test_macro.second_parameter.find(function_name) !=
-//           std::string::npos) {
-//         ret.push_back(a_test_macro);
-//       }
-//     } else {
-//       if (a_test_macro.second_parameter.find(class_name) != std::string::npos
-//       &&
-//           a_test_macro.second_parameter.find(function_name) !=
-//               std::string::npos) {
-//         ret.push_back(a_test_macro);
-//       }
-//     }
-//   }
-//   return ret;
-// }
-
-// std::vector<TestMacro>
-// FileContext::get_must_test_macros(std::string second_parameter) {
-//   std::vector<TestMacro> ret;
-//   for (auto a_test_macro : test_macros) {
-//     if (a_test_macro.second_parameter == second_parameter) {
-//       ret.push_back(a_test_macro);
-//       return ret;
-//     }
-//   }
-//   return ret;
-// }
-
-// void FileContext::cout() {
-//   std::cout << file_path << std::endl;
-//   //   std::vector<std::string> includes;
-//   //   std::vector<ADefine> defines;
-//   //   std::vector<GlobalVar> global_vars;
-//   //   std::vector<Class> classes;
-//   //   std::vector<Function> functions;
-//   std::cout << "includes:" << std::endl;
-//   for (auto include : includes) {
-//     std::cout << include << std::endl;
-//   }
-//   std::cout << "defines:" << std::endl;
-//   for (auto define : defines) {
-//     std::cout << define.define_name << " " << define.define_body <<
-//     std::endl;
-//   }
-//   std::cout << "global_vars:" << std::endl;
-//   for (auto global_var : global_vars) {
-//     std::cout << global_var.global_var << " " << global_var.its_namespace
-//               << std::endl;
-//     applications_cout(global_var.applications);
-//   }
-//   std::cout << "classes:" << std::endl;
-//   for (auto one_class : classes) {
-//     std::cout << one_class.class_name << std::endl;
-//   }
-//   std::cout << "functions:" << std::endl;
-//   for (auto function : functions) {
-//     std::cout << function.function_name << std::endl;
-//     applications_cout(function.applications);
-//   }
-// }
-
-void FileContext::delete_repeated_applications() {
-  for (auto it = applications.begin(); it != applications.end();) {
-    bool b = 0;
-    for (auto it2 = applications.begin(); it2 != applications.end(); ++it2) {
-      if (it2 != it && it2->class_name == it->class_name &&
-          it2->signature == it->signature) {
-        b = 1;
-        break;
+Constructor FileContext::class_get_constructor(std::string class_name,
+                                               std::string signature) {
+  for (auto a_class : classes) {
+    if (a_class.class_name == class_name) {
+      for (auto constructor : a_class.constructors) {
+        if (constructor.signature == signature) {
+          return constructor;
+        }
       }
     }
-    if (b == 1) {
-      it = applications.erase(it);
-    } else {
-      ++it;
+  }
+}
+
+bool FileContext::class_has_destructor(std::string class_name,
+                                       std::string signature) {
+  for (auto a_class : classes) {
+    if (a_class.class_name == class_name) {
+      if (a_class.destructor.signature == signature) {
+        return 1;
+      }
+      return 0;
+    }
+  }
+  return 0;
+}
+Destructor FileContext::class_get_destructor(std::string class_name,
+                                             std::string signature) {
+  for (auto a_class : classes) {
+    if (a_class.class_name == class_name) {
+      return a_class.destructor;
     }
   }
 }
 
-void FileContext::get_one_file_context() {
-  set_global_vars();
-  get_includes();
-  get_defines();
-  get_global_vars();
-  get_test_macros();
-  get_context();
-  delete_repeated_applications();
+bool FileContext::class_has_method(std::string class_name,
+                                   std::string signature) {
+  for (auto a_class : classes) {
+    if (a_class.class_name == class_name) {
+      for (auto method : a_class.methods) {
+        if (method.signature == signature) {
+          return 1;
+        }
+      }
+      return 0;
+    }
+  }
+  return 0;
+}
+Method FileContext::class_get_method(std::string class_name,
+                                     std::string signature) {
+  for (auto a_class : classes) {
+    if (a_class.class_name == class_name) {
+      for (auto method : a_class.methods) {
+        if (method.signature == signature) {
+          return method;
+        }
+      }
+    }
+  }
 }
 
-json FileContext::get_file_j() {
-  json j;
-  j["includes"] = json::array();
-  j["includes"] = includes;
-  j["defines"] = json::object();
-  for (auto define : defines) {
-    j["defines"][define.define_name] = define.define_body;
-  }
-  for (auto global_var : global_vars) {
-    if (j.find(global_var.its_namespace) == j.end()) {
-      j[global_var.its_namespace] = json::object();
-    }
-    if (j[global_var.its_namespace].find("global_vars") ==
-        j[global_var.its_namespace].end()) {
-      j[global_var.its_namespace]["global_vars"] = json::array();
-    }
-    j[global_var.its_namespace]["global_vars"].push_back(global_var.global_var);
-  }
-  for (auto alias : alias) {
-    if (j.find(alias.its_namespace) == j.end()) {
-      j[alias.its_namespace] = json::object();
-    }
-    if (j[alias.its_namespace].find("alias") == j[alias.its_namespace].end()) {
-      j[alias.its_namespace]["alias"] = json::array();
-    }
-    std::string alias_string =
-        "using " + alias.alias_name + " = " + alias.base_name;
-    j[alias.its_namespace]["alias"].push_back(alias_string);
-  }
-  return j;
-}
-
-json FileContext::get_j(bool test_flag) {
-  json j;
-  json file_j = get_file_j();
-  j[file_path] = json::object();
+Function FileContext::get_function(std::string signature) {
   for (auto function : functions) {
-    // if (function.function_name == "main") {
-    //   std::cout << std::endl;
-    // }
-    std::string class_function;
-    if (function.class_name != "class") {
-      class_function = function.class_name + "::" + function.function_name;
+    if (function.signature == signature) {
+      return function;
+    }
+  }
+}
+
+std::vector<TestMacro>
+FileContext::get_may_test_macros(std::string class_name,
+                                 std::string function_name) {
+  std::vector<TestMacro> ret;
+  for (auto a_test_macro : test_macros) {
+    if (class_name == "class") {
+      if (a_test_macro.second_parameter.find(function_name) !=
+          std::string::npos) {
+        ret.push_back(a_test_macro);
+      }
     } else {
-      class_function = function.function_name;
-    }
-    if (j[file_path].find(class_function) == j[file_path].end()) {
-      j[file_path][class_function] = json::object();
-      j[file_path][class_function]["focal"] = json::object();
-    }
-    j[file_path][class_function]["focal"][function.signature] = json::object();
-    j[file_path][class_function]["focal"][function.signature].merge_patch(
-        file_j);
-    j[file_path][class_function]["focal"][function.signature]["function_body"] =
-        json::object();
-    j[file_path][class_function]["focal"][function.signature]["function_body"] =
-        gac_classes_and_functions.get_function_body(function.class_name,
-                                                    function.signature);
-    std::vector<Application> need_applications = applications;
-    Application function_application;
-    function_application.class_name = function.class_name;
-    function_application.signature = function.signature;
-    bool b = 0;
-    for (auto application : need_applications) {
-      if (application == function_application) {
-        b = 1;
-        break;
-      }
-    }
-    if (b == 0) {
-      need_applications.push_back(function_application);
-    }
-    std::vector<Application> need_function_applications =
-        gac_classes_and_functions.get_applications(function.class_name,
-                                                   function.signature);
-    for (auto need_function_application : need_function_applications) {
-      bool b = 0;
-      for (auto application : need_applications) {
-        if (application == need_function_application) {
-          b = 1;
-          break;
-        }
-      }
-      if (b == 0) {
-        need_applications.push_back(need_function_application);
-      }
-    }
-    gac_classes_and_functions.get_all_applications(&need_applications);
-    std::vector<std::string> used_classes;
-    for (auto application : need_applications) {
-      if (application.class_name != "class") {
-        bool b = 0;
-        for (auto used_class : used_classes) {
-          if (used_class == application.class_name) {
-            b = 1;
-            break;
-          }
-        }
-        if (b == 0) {
-          used_classes.push_back(application.class_name);
-          j[file_path][class_function]["focal"][function.signature].merge_patch(
-              gac_classes_and_functions.get_simple_class(
-                  application.class_name));
-        }
-      }
-      if (application.signature != "") {
-        j[file_path][class_function]["focal"][function.signature].merge_patch(
-            gac_classes_and_functions.get_j(application));
+      if (a_test_macro.second_parameter.find(class_name) != std::string::npos &&
+          a_test_macro.second_parameter.find(function_name) !=
+              std::string::npos) {
+        ret.push_back(a_test_macro);
       }
     }
   }
-  return j;
+  return ret;
 }
 
-void FileContexts::push_back(FileContext file_context) {
-  file_contexts.push_back(file_context);
-}
-
-json FileContexts::get_j(bool test_flag) {
-  json j;
-  for (auto file_context : file_contexts) {
-    j.merge_patch(file_context.get_j(test_flag));
-  }
-  return j;
-  // for (auto file_context : file_contexts) {
-  //   // file_context.cout();
-  //   // i++;
-  //   for (auto a_class : file_context.classes) {
-  //     for (auto constructor : a_class.constructors) {
-  //       if (constructor.function_body != "") {
-  //         json temp_j = json::object();
-  //         SignatureContext constructor_signature_context =
-  //             get_signature_context(file_contexts, file_context.file_path,
-  //                                   a_class.class_name,
-  //                                   constructor.signature);
-  //         json constructor_signatre_j =
-  //         constructor_signature_context.get_j();
-  //         temp_j[file_context.file_path] = json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + a_class.class_name] =
-  //                   json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + a_class.class_name]["focal"] =
-  //                   json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + a_class.class_name]["focal"] =
-  //                   constructor_signatre_j[file_context.file_path]
-  //                                         [a_class.class_name +
-  //                                          "::" + a_class.class_name];
-  //         if (RealTestFlag) {
-  //           std::vector<TestMacro> may_tests = get_may_tests(
-  //               file_contexts, a_class.class_name, a_class.class_name);
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" +
-  //                 a_class.class_name]["may_test"] =
-  //                     json::object();
-  //           for (auto may_test : may_tests) {
-  //             std::pair<std::string, std::pair<std::string, std::string>>
-  //                 may_test_class_signature =
-  //                     all_context_paths->getTest(may_test.second_parameter);
-  //             SignatureContext may_test_signature_context =
-  //                 get_signature_context(file_contexts,
-  //                                       may_test_class_signature.first,
-  //                                       may_test_class_signature.second.first,
-  //                                       may_test_class_signature.second.second);
-  //             json may_test_signature_j = may_test_signature_context.get_j();
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   a_class.class_name]["may_test"]
-  //                   [may_test.second_parameter] = json::object();
-  //             for (auto [key, value] : may_test_signature_j.items()) {
-  //               for (auto [key1, value1] : value.items()) {
-  //                 temp_j[file_context.file_path]
-  //                       [a_class.class_name + "::" + a_class.class_name]
-  //                       ["may_test"][may_test.second_parameter] = value1;
-  //               }
-  //             }
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   a_class.class_name]["may_test"]
-  //                   [may_test.second_parameter]["test_macro"] =
-  //                   json::object();
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   a_class.class_name]["may_test"]
-  //                   [may_test.second_parameter]["test_macro"] =
-  //                       may_test.test_mecro;
-  //           }
-  //         }
-  //         j.merge_patch(temp_j);
-  //       }
-  //     }
-  //     if (a_class.destructor.function_body != "") {
-  //       std::string function_name = "~" + a_class.class_name;
-  //       json temp_j = json::object();
-  //       SignatureContext destructor_signature_context =
-  //       get_signature_context(
-  //           file_contexts, file_context.file_path, a_class.class_name,
-  //           a_class.destructor.signature);
-  //       json destructor_signatre_j = destructor_signature_context.get_j();
-  //       temp_j[file_context.file_path] = json::object();
-  //       temp_j[file_context.file_path]
-  //             [a_class.class_name + "::" + function_name] = json::object();
-  //       temp_j[file_context.file_path]
-  //             [a_class.class_name + "::" + function_name]["focal"] =
-  //                 json::object();
-  //       temp_j[file_context.file_path][a_class.class_name +
-  //                                      "::" + function_name]["focal"] =
-  //           destructor_signatre_j[file_context.file_path]
-  //                                [a_class.class_name + "::" + function_name];
-  //       if (RealTestFlag) {
-  //         std::vector<TestMacro> may_tests =
-  //             get_may_tests(file_contexts, a_class.class_name,
-  //             function_name);
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + function_name]["may_test"] =
-  //                   json::object();
-  //         for (auto may_test : may_tests) {
-  //           std::pair<std::string, std::pair<std::string, std::string>>
-  //               may_test_class_signature =
-  //                   all_context_paths->getTest(may_test.second_parameter);
-  //           SignatureContext may_test_signature_context =
-  //           get_signature_context(
-  //               file_contexts, may_test_class_signature.first,
-  //               may_test_class_signature.second.first,
-  //               may_test_class_signature.second.second);
-  //           json may_test_signature_j = may_test_signature_context.get_j();
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" + function_name]["may_test"]
-  //                 [may_test.second_parameter] = json::object();
-  //           for (auto [key, value] : may_test_signature_j.items()) {
-  //             for (auto [key1, value1] : value.items()) {
-  //               temp_j[file_context.file_path]
-  //                     [a_class.class_name + "::" + function_name]["may_test"]
-  //                     [may_test.second_parameter] = value1;
-  //             }
-  //           }
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" + function_name]["may_test"]
-  //                 [may_test.second_parameter]["test_macro"] = json::object();
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" + function_name]["may_test"]
-  //                 [may_test.second_parameter]["test_macro"] =
-  //                     may_test.test_mecro;
-  //         }
-  //       }
-  //       j.merge_patch(temp_j);
-  //     }
-  //     for (auto method : a_class.methods) {
-  //       if (method.function_body != "") {
-  //         json temp_j = json::object();
-  //         SignatureContext method_signature_context =
-  //             get_signature_context(file_contexts, file_context.file_path,
-  //                                   a_class.class_name, method.signature);
-  //         json method_signatre_j = method_signature_context.get_j();
-  //         temp_j[file_context.file_path] = json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + method.method_name] =
-  //                   json::object();
-  //         temp_j[file_context.file_path]
-  //               [a_class.class_name + "::" + method.method_name]["focal"] =
-  //                   json::object();
-  //         temp_j[file_context.file_path][a_class.class_name +
-  //                                        "::" + method.method_name]["focal"]
-  //                                        =
-  //             method_signatre_j[file_context.file_path]
-  //                              [a_class.class_name + "::" +
-  //                              method.method_name];
-  //         if (RealTestFlag) {
-  //           std::vector<TestMacro> may_tests = get_may_tests(
-  //               file_contexts, a_class.class_name, method.method_name);
-  //           temp_j[file_context.file_path]
-  //                 [a_class.class_name + "::" +
-  //                 method.method_name]["may_test"] =
-  //                     json::object();
-  //           for (auto may_test : may_tests) {
-  //             std::pair<std::string, std::pair<std::string, std::string>>
-  //                 may_test_class_signature =
-  //                     all_context_paths->getTest(may_test.second_parameter);
-  //             SignatureContext may_test_signature_context =
-  //                 get_signature_context(file_contexts,
-  //                                       may_test_class_signature.first,
-  //                                       may_test_class_signature.second.first,
-  //                                       may_test_class_signature.second.second);
-  //             json may_test_signature_j = may_test_signature_context.get_j();
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   method.method_name]["may_test"]
-  //                   [may_test.second_parameter] = json::object();
-  //             for (auto [key, value] : may_test_signature_j.items()) {
-  //               for (auto [key1, value1] : value.items()) {
-  //                 temp_j[file_context.file_path]
-  //                       [a_class.class_name + "::" + method.method_name]
-  //                       ["may_test"][may_test.second_parameter] = value1;
-  //               }
-  //             }
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   method.method_name]["may_test"]
-  //                   [may_test.second_parameter]["test_macro"] =
-  //                   json::object();
-  //             temp_j[file_context.file_path]
-  //                   [a_class.class_name + "::" +
-  //                   method.method_name]["may_test"]
-  //                   [may_test.second_parameter]["test_macro"] =
-  //                       may_test.test_mecro;
-  //           }
-  //         }
-  //         j.merge_patch(temp_j);
-  //       }
-  //     }
-  //   }
-  //   for (auto function : file_context.functions) {
-  //     if (function.function_body != "") {
-  //       json temp_j = json::object();
-  //       SignatureContext function_signature_context = get_signature_context(
-  //           file_contexts, file_context.file_path, "class",
-  //           function.signature);
-  //       json function_signatre_j = function_signature_context.get_j();
-  //       temp_j[file_context.file_path] = json::object();
-  //       temp_j[file_context.file_path]["class::" + function.function_name] =
-  //           json::object();
-  //       temp_j[file_context.file_path]["class::" + function.function_name]
-  //             ["focal"] = json::object();
-  //       temp_j[file_context.file_path]["class::" + function.function_name]
-  //             ["focal"] =
-  //                 function_signatre_j[file_context.file_path]
-  //                                    ["class::" + function.function_name];
-  //       if (RealTestFlag) {
-  //         std::vector<TestMacro> may_tests =
-  //             get_may_tests(file_contexts, "class", function.function_name);
-  //         temp_j[file_context.file_path]["class::" + function.function_name]
-  //               ["may_test"] = json::object();
-  //         for (auto may_test : may_tests) {
-  //           std::pair<std::string, std::pair<std::string, std::string>>
-  //               may_test_class_signature =
-  //                   all_context_paths->getTest(may_test.second_parameter);
-  //           SignatureContext may_test_signature_context =
-  //           get_signature_context(
-  //               file_contexts, may_test_class_signature.first,
-  //               may_test_class_signature.second.first,
-  //               may_test_class_signature.second.second);
-  //           json may_test_signature_j = may_test_signature_context.get_j();
-  //           temp_j[file_context.file_path]["class::" +
-  //           function.function_name]
-  //                 ["may_test"][may_test.second_parameter] = json::object();
-  //           for (auto [key, value] : may_test_signature_j.items()) {
-  //             for (auto [key1, value1] : value.items()) {
-  //               temp_j[file_context.file_path]
-  //                     ["class::" + function.function_name]["may_test"]
-  //                     [may_test.second_parameter] = value1;
-  //             }
-  //           }
-  //           temp_j[file_context.file_path]["class::" +
-  //           function.function_name]
-  //                 ["may_test"][may_test.second_parameter]["test_macro"] =
-  //                     json::object();
-  //           temp_j[file_context.file_path]["class::" +
-  //           function.function_name]
-  //                 ["may_test"][may_test.second_parameter]["test_macro"] =
-  //                     may_test.test_mecro;
-  //         }
-  //       }
-  //       j.merge_patch(temp_j);
-  //     }
-  //   }
-  // }
-}
-
-void GetFileContext::get_all_file_contexts() {
-  ::gac_project_path = project_path;
-  ::gac_classes_and_functions = classes_and_functions;
-  for (auto file_path : *file_paths) {
-    std::vector<const char *> args{"file_context", "-p",
-                                   compilation_database_path.c_str(),
-                                   file_path.c_str()};
-    int argc = args.size();
-    const char **argv = args.data();
-    auto ExpectedParser =
-        CommonOptionsParser::create(argc, argv, FocxtCategory);
-    if (!ExpectedParser) {
-      errs() << ExpectedParser.takeError();
-      exit(1);
+std::vector<TestMacro>
+FileContext::get_must_test_macros(std::string second_parameter) {
+  std::vector<TestMacro> ret;
+  for (auto a_test_macro : test_macros) {
+    if (a_test_macro.second_parameter == second_parameter) {
+      ret.push_back(a_test_macro);
+      return ret;
     }
-    CommonOptionsParser &OptionParser = ExpectedParser.get();
-    ClangTool Tool(OptionParser.getCompilations(),
-                   OptionParser.getSourcePathList());
-    FileContext file_context(Tool, file_path);
-    file_context.get_one_file_context();
-    file_contexts.push_back(file_context);
+  }
+  return ret;
+}
+
+void FileContext::cout() {
+  std::cout << file_path << std::endl;
+  //   std::vector<std::string> includes;
+  //   std::vector<ADefine> defines;
+  //   std::vector<GlobalVar> global_vars;
+  //   std::vector<Class> classes;
+  //   std::vector<Function> functions;
+  std::cout << "includes:" << std::endl;
+  for (auto include : includes) {
+    std::cout << include << std::endl;
+  }
+  std::cout << "defines:" << std::endl;
+  for (auto define : defines) {
+    std::cout << define.define_name << " " << define.define_body << std::endl;
+  }
+  std::cout << "global_vars:" << std::endl;
+  for (auto global_var : global_vars) {
+    std::cout << global_var.global_var << " " << global_var.its_namespace
+              << std::endl;
+    applications_cout(global_var.applications);
+  }
+  std::cout << "classes:" << std::endl;
+  for (auto one_class : classes) {
+    std::cout << one_class.class_name << std::endl;
+  }
+  std::cout << "functions:" << std::endl;
+  for (auto function : functions) {
+    std::cout << function.function_name << std::endl;
+    applications_cout(function.applications);
   }
 }
 
-FileContexts GetFileContext::get_file_contexts() { return file_contexts; }
+void get_all_applications(std::set<Application> all_applications,
+                          std::string a_file_path, std::string class_name,
+                          std::string signature);
