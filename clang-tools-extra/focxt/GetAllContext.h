@@ -1,5 +1,4 @@
 #pragma once
-#include "GetAllPath.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
@@ -11,6 +10,7 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
+#include <GetAllDefinition.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <filesystem>
 #include <fstream>
@@ -28,61 +28,8 @@ using namespace clang::ast_matchers;
 using namespace clang::tooling;
 using namespace llvm;
 
-struct Application {
-  std::string file_path;
-  std::string class_name;
-  std::string signature;
-  bool operator==(const Application &other) const {
-    return file_path == other.file_path && class_name == other.class_name &&
-           signature == other.signature;
-  }
-};
-
 struct GlobalVar {
   std::string global_var;
-  std::string its_namespace;
-  std::vector<Application> applications;
-};
-
-struct Constructor {
-  std::string signature;
-  std::string function_body;
-  std::vector<std::string> parameters;
-  std::vector<Application> applications;
-};
-
-struct Destructor {
-  std::string signature;
-  std::string function_body;
-  std::vector<Application> applications;
-};
-
-struct Method {
-  std::string method_name;
-  std::string signature;
-  std::string function_body;
-  std::vector<std::string> parameters;
-  std::string return_type;
-  std::vector<Application> applications;
-};
-
-struct Class {
-  std::string class_name;
-  std::string base_class;
-  std::vector<Constructor> constructors;
-  Destructor destructor;
-  std::vector<std::string> fields;
-  std::vector<Method> methods;
-  std::string its_namespace;
-};
-
-struct Function {
-  std::string function_name;
-  std::string signature;
-  std::string function_body;
-  std::vector<std::string> parameters;
-  std::string return_type;
-  std::vector<Application> applications;
   std::string its_namespace;
 };
 
@@ -96,17 +43,40 @@ struct TestMacro {
   std::string test_mecro;
 };
 
+struct InFileFunction {
+  std::string class_name;
+  std::string function_name;
+  std::string signature;
+};
+
+struct InFileAlias {
+  std::string alias_name;
+  std::string base_name;
+  std::string its_namespace;
+};
+
 class FileContext {
-public:
+  ClangTool &Tool;
   std::string file_path;
   std::vector<std::string> includes;
   std::vector<ADefine> defines;
   std::vector<GlobalVar> global_vars;
-  std::vector<Class> classes;
-  std::vector<Function> functions;
+  std::vector<InFileFunction> functions;
   std::vector<TestMacro> test_macros;
+  std::vector<InFileAlias> alias;
+  std::vector<Application> applications;
+
+  void set_global_vars();
+  void get_includes();
+  void get_defines();
+  void get_global_vars();
+  void get_test_macros();
+  void get_context();
+
+public:
   FileContext() = default;
-  FileContext(std::string file_path) : file_path(file_path) {}
+  FileContext(ClangTool &Tool, std::string file_path)
+      : Tool(Tool), file_path(file_path) {}
   Class get_simple_class(std::string class_name);
   bool class_has_constructor(std::string class_name, std::string signature);
   Constructor class_get_constructor(std::string class_name,
@@ -121,36 +91,39 @@ public:
                                              std::string function_name);
   std::vector<TestMacro> get_must_test_macros(std::string second_parameter);
   void cout();
+
+  void delete_repeated_applications();
+  void get_one_file_context();
+  json get_file_j();
+  json get_j(bool test_flag);
 };
 
-class OneFileContext {
-  ClangTool &Tool;
-  AllContextPaths *all_context_paths;
-  std::string project_path;
-  std::string compilation_database_path;
-  std::string file_path;
-  FileContext file_context;
+class FileContexts {
+  std::vector<FileContext> file_contexts;
 
 public:
-  OneFileContext(ClangTool &Tool, AllContextPaths *all_context_paths,
-                 std::string project_path,
-                 std::string compilation_database_path, std::string file_path)
-      : Tool(Tool), all_context_paths(all_context_paths),
-        project_path(project_path),
+  void push_back(FileContext file_context);
+  json get_j(bool test_flag);
+};
+
+class GetFileContext {
+  FileContexts file_contexts;
+  std::string project_path;
+  std::string compilation_database_path;
+  std::vector<std::string> *file_paths;
+  cl::OptionCategory FocxtCategory;
+  ClassesAndFunctions classes_and_functions;
+
+public:
+  GetFileContext(std::string project_path,
+                 std::string compilation_database_path,
+                 std::vector<std::string> *file_paths,
+                 cl::OptionCategory FocxtCategory,
+                 ClassesAndFunctions classes_and_functions)
+      : project_path(project_path),
         compilation_database_path(compilation_database_path),
-        file_path(file_path), file_context(file_path) {
-    set_global_vars();
-    get_includes();
-    get_defines();
-    get_global_vars();
-    get_test_macros();
-    get_context();
-  }
-  void set_global_vars();
-  void get_includes();
-  void get_defines();
-  void get_global_vars();
-  void get_test_macros();
-  void get_context();
-  FileContext get_file_context();
+        file_paths(file_paths), FocxtCategory(FocxtCategory),
+        classes_and_functions(classes_and_functions) {}
+  void get_all_file_contexts();
+  FileContexts get_file_contexts();
 };
