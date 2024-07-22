@@ -77,20 +77,20 @@ focxt options:
 
 ###### 安装依赖，包括：
 
-C/C++编译工具，如gcc或clang
+```C/C++编译工具，如gcc或clang
 CMake
-Ninja
+Ninja```
 
 ###### 克隆并进入该项目
 
-git clone https://github.com/cppbear/llvm-project.git && cd llvm-project
+```git clone https://github.com/cppbear/llvm-project.git && cd llvm-project```
 
 ###### 配置CMake
 
-cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_DUMP=ON
+```cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_DUMP=ON```
 
 ###### 构建并安装
 
-cmake --build build --target focxt
-cmake --install build --component focxt
-cmake --install build --component clang-resource-headers
+```cmake --build build --target focxt```
+```cmake --install build --component focxt```
+```cmake --install build --component clang-resource-headers```

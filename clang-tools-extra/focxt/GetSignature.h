@@ -23,4 +23,6 @@ using namespace clang::ast_matchers;
 using namespace clang::tooling;
 using namespace llvm;
 
+// std::string get_application_type(QualType qualtype);
 std::string get_signature(const FunctionDecl *function);
+// void get_application_types(QualType qualtype, std::set<std::string> &types);
