@@ -841,10 +841,13 @@ json FileContext::get_j(bool test_flag) {
   json j;
   json file_j = get_file_j();
   j[file_path] = json::object();
+  std::cout << file_path << std::endl;
   for (auto function : functions) {
     // if (function.function_name == "main") {
     //   std::cout << std::endl;
     // }
+    // std::cout << function.class_name << "\t" << function.function_name
+    //           << std::endl;
     std::string class_function;
     if (function.class_name != "class") {
       class_function = function.class_name + "::" + function.function_name;
@@ -924,6 +927,7 @@ void FileContexts::push_back(FileContext file_context) {
 }
 
 json FileContexts::get_j(bool test_flag) {
+  std::cout << "generate json" << std::endl;
   json j;
   for (auto file_context : file_contexts) {
     j.merge_patch(file_context.get_j(test_flag));
@@ -1178,6 +1182,7 @@ void GetFileContext::get_all_file_contexts() {
   ::gac_project_path = project_path;
   ::gac_classes_and_functions = classes_and_functions;
   for (auto file_path : *file_paths) {
+    std::cout << file_path << std::endl;
     std::vector<const char *> args{"file_context", "-p",
                                    compilation_database_path.c_str(),
                                    file_path.c_str()};

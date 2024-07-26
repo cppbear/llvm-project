@@ -423,6 +423,11 @@ void ClassesAndFunctions::cout() {
   // }
 }
 
+void ClassesAndFunctions::cout_nums() {
+  std::cout << "there are " << classes.size() << " classes" << std::endl;
+  std::cout << "there are " << functions.size() << " functions" << std::endl;
+}
+
 std::vector<std::string>
 ClassesAndFunctions::get_application_classes(std::string type) {
   std::vector<std::string> application_classes;
@@ -532,6 +537,7 @@ void update_applications(std::vector<Application> &applications) {
 }
 
 void ClassesAndFunctions::update_all_applications() {
+  std::cout << "update all applications" << std::endl;
   for (auto &a_class : classes) {
     update_applications(a_class.applications);
     for (auto &constructor : a_class.constructors) {
@@ -4586,7 +4592,7 @@ public:
 void GetClassesAndFunctions::get_definitions() {
   gad_project_path = project_path;
   for (auto file_path : *file_paths) {
-    // std::cout << file_path << std::endl;
+    std::cout << file_path << std::endl;
     std::vector<const char *> args{"context_path", "-p",
                                    compilation_database_path.c_str(),
                                    file_path.c_str()};

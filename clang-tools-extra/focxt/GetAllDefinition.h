@@ -302,6 +302,7 @@ public:
   void push_back_destructor(std::string class_name, Destructor destructor);
   void push_back_method(std::string class_name, Method method);
   void cout();
+  void cout_nums();
   void update_all_applications();
   std::vector<Application> get_applications(std::string class_name,
                                             std::string signature);
