@@ -79,14 +79,14 @@ void get_all_files(std::string path, std::vector<std::string> *file_paths) {
           // &&
           // directorty_entry.find("/test") == std::string::npos &&
           // directorty_entry.find("/doc") == std::string::npos &&
-          // directorty_entry.find("/example") == std::string::npos &&
-          // directorty_entry.find("/go") == std::string::npos &&
-          // directorty_entry.find("/java") == std::string::npos &&
-          // directorty_entry.find("/js") == std::string::npos &&
-          // directorty_entry.find("/python") == std::string::npos &&
-          // directorty_entry.find("/research") == std::string::npos &&
-          // directorty_entry.find("/scripts") == std::string::npos
-      ) {
+          // directorty_entry.find("/example") == std::string::npos
+          && directorty_entry.find("/go") == std::string::npos &&
+          directorty_entry.find("/java") == std::string::npos &&
+          directorty_entry.find("/js") == std::string::npos &&
+          directorty_entry.find("/python") == std::string::npos &&
+          directorty_entry.find("/research") == std::string::npos &&
+          directorty_entry.find("/scripts") == std::string::npos &&
+          directorty_entry.find("/vendor") == std::string::npos) {
         get_all_files(entry.path(), file_paths);
       }
     }
@@ -131,6 +131,7 @@ int main(int argc, const char **argv) {
   // freopen(output_path.c_str(), "w", stdout);
   // classes_and_functions.cout();
   // freopen("/dev/tty", "w", stdout);
+  classes_and_functions.cout_nums();
   GetFileContext get_file_context(RealProjectPath, RealBuildPath, file_paths,
                                   FocxtCategory, classes_and_functions);
   get_file_context.get_all_file_contexts();
@@ -175,63 +176,63 @@ int main(int argc, const char **argv) {
     outFile << cout_j.dump(4);
     outFile.close();
   }
-  // else {
-  //   std::string json_path = RealProjectPath;
-  //   std::string class_function_name;
-  //   if (RealClassName == "") {
-  //     class_function_name = "class::" + RealFunctionName;
-  //     json_path = json_path + "/" + "project_cxt" + ".json";
-  //   } else {
-  //     class_function_name = RealClassName + "::" + RealFunctionName;
-  //     json_path = json_path + "/" + "project_cxt" + ".json ";
-  //   }
-  //   json cout_j = json::object();
-  //   if (RealTestFlag) {
-  //     cout_j[RealFilePath] = json::object();
-  //     cout_j[RealFilePath][class_function_name] = json::object();
-  //     cout_j[RealFilePath][class_function_name]["may_test"] = json::object();
-  //     cout_j[RealFilePath][class_function_name]["may_test"] =
-  //         j[RealFilePath][class_function_name]["may_test"];
-  //     for (auto a_test : RealTestList) {
-  //       std::vector<TestMacro> must_test = get_must_test(file_contexts,
-  //       a_test); if (must_test.size() != 0) {
-  //         std::pair<std::string, std::pair<std::string, std::string>>
-  //             must_test_class_signature =
-  //                 all_context_paths->getTest(must_test[0].second_parameter);
-  //         cout_j[RealFilePath][class_function_name]["must_test"] =
-  //             json::object();
-  //         SignatureContext must_test_signature_context =
-  //         get_signature_context(
-  //             file_contexts, must_test_class_signature.first,
-  //             must_test_class_signature.second.first,
-  //             must_test_class_signature.second.second);
-  //         json must_test_signature_j = must_test_signature_context.get_j();
-  //         for (auto [key, value] : must_test_signature_j.items()) {
-  //           for (auto [key1, value1] : value.items()) {
-  //             cout_j[RealFilePath][class_function_name]["must_test"]
-  //                   [must_test[0].second_parameter] = json::object();
-  //             cout_j[RealFilePath][class_function_name]["must_test"]
-  //                   [must_test[0].second_parameter] = value1;
-  //           }
-  //         }
-  //         cout_j[RealFilePath][class_function_name]["must_test"]
-  //               [must_test[0].second_parameter]["test_macro"] =
-  //               json::object();
-  //         cout_j[RealFilePath][class_function_name]["must_test"]
-  //               [must_test[0].second_parameter]["test_macro"] =
-  //                   must_test[0].test_mecro;
-  //       }
-  //     }
-  //   }
-  //   // cout_j["type"] = "function";
-  //   cout_j[RealFilePath][class_function_name]["focal"] = json::object();
-  //   cout_j[RealFilePath][class_function_name]["focal"] =
-  //       j[RealFilePath][class_function_name]["focal"];
-  //   std::ofstream outFile;
-  //   outFile.open(json_path);
-  //   outFile << cout_j.dump(4);
-  //   outFile.close();
-  // }
+  else {
+    std::string json_path = RealProjectPath;
+    std::string class_function_name;
+    if (RealClassName == "") {
+      class_function_name = RealFunctionName;
+      json_path = json_path + "/" + "project_cxt" + ".json";
+    } else {
+      class_function_name = RealClassName + "::" + RealFunctionName;
+      json_path = json_path + "/" + "project_cxt" + ".json ";
+    }
+    json cout_j = json::object();
+    // if (RealTestFlag) {
+    //   cout_j[RealFilePath] = json::object();
+    //   cout_j[RealFilePath][class_function_name] = json::object();
+    //   cout_j[RealFilePath][class_function_name]["may_test"] = json::object();
+    //   cout_j[RealFilePath][class_function_name]["may_test"] =
+    //       j[RealFilePath][class_function_name]["may_test"];
+    //   for (auto a_test : RealTestList) {
+    //     std::vector<TestMacro> must_test = get_must_test(file_contexts,
+    //     a_test); if (must_test.size() != 0) {
+    //       std::pair<std::string, std::pair<std::string, std::string>>
+    //           must_test_class_signature =
+    //               all_context_paths->getTest(must_test[0].second_parameter);
+    //       cout_j[RealFilePath][class_function_name]["must_test"] =
+    //           json::object();
+    //       SignatureContext must_test_signature_context =
+    //       get_signature_context(
+    //           file_contexts, must_test_class_signature.first,
+    //           must_test_class_signature.second.first,
+    //           must_test_class_signature.second.second);
+    //       json must_test_signature_j = must_test_signature_context.get_j();
+    //       for (auto [key, value] : must_test_signature_j.items()) {
+    //         for (auto [key1, value1] : value.items()) {
+    //           cout_j[RealFilePath][class_function_name]["must_test"]
+    //                 [must_test[0].second_parameter] = json::object();
+    //           cout_j[RealFilePath][class_function_name]["must_test"]
+    //                 [must_test[0].second_parameter] = value1;
+    //         }
+    //       }
+    //       cout_j[RealFilePath][class_function_name]["must_test"]
+    //             [must_test[0].second_parameter]["test_macro"] =
+    //             json::object();
+    //       cout_j[RealFilePath][class_function_name]["must_test"]
+    //             [must_test[0].second_parameter]["test_macro"] =
+    //                 must_test[0].test_mecro;
+    //     }
+    //   }
+    // }
+    // cout_j["type"] = "function";
+    cout_j[RealFilePath][class_function_name]["focal"] = json::object();
+    cout_j[RealFilePath][class_function_name]["focal"] =
+        j[RealFilePath][class_function_name]["focal"];
+    std::ofstream outFile;
+    outFile.open(json_path);
+    outFile << cout_j.dump(4);
+    outFile.close();
+  }
 
   delete file_paths;
   return 0;

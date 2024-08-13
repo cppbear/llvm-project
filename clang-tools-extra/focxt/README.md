@@ -1,16 +1,16 @@
-##### Focxt
+# Focxt
 
-该工具用于分析c++源代码每个函数的上下文信息。
+该工具用于分析 c++源代码每个函数的上下文信息。
 
-##### 前提
+## 前提
 
-使用该工具首先需要被分析项目具有类似compile_commands.json的编译数据库。
+使用该工具首先需要被分析项目具有类似 compile_commands.json 的编译数据库。
 
-如果被分析项目本身使用CMake管理构建，可以通过在配置CMake时添加-DCMAKE_EXPORT_COMPILE_COMMANDS=ON来生成。
+如果被分析项目本身使用 CMake 管理构建，可以通过在配置 CMake 时添加-DCMAKE_EXPORT_COMPILE_COMMANDS=ON 来生成。
 
-如果项目本身不使用CMake管理构建，可以考虑使用Bear来生成。
+如果项目本身不使用 CMake 管理构建，可以考虑使用 Bear 来生成。
 
-##### 使用
+## 使用
 
 ```shell
 /usr/local/bin/focxt --help
@@ -42,55 +42,49 @@ focxt options:
   --class=<string>                                  - Specify the class to analyze
   --file=<string>                                   - Specify the file to analyze
   --function=<string>                               - Specify the function to analyze
-  --may-test                                        - Specify get may test
-  --must-test=<string>                              - Specify must test second parameters
   --project=<string>                                - Specify the projrct path
 ```
 
-##### 用法
+## 用法
 
-###### 分析整个项目
-
-```
-./focxt --project path/to/project --build path/to/build/directory {--may-test}
-```
-
-​	其中--may-test是一个开关，搜索可能的测试函数，由于TEST(TestSuiteName, TestName) { }会被展开为class TestSuiteName_TestName_Test，所以会搜索项目中TestName包含函数名的TEST宏和宏展开后的类。
-
-###### 分析整个文件
+### 分析整个项目
 
 ```
-./focxt --project path/to/project --build path/to/build/directory --file path/to/source_file {--may-test}
+./focxt --project path/to/project --build path/to/build/directory
 ```
 
-###### 分析某个函数或方法
+### 分析整个文件
 
 ```
-./focxt --project path/to/project --build path/to/build/directory --file path/to/source_file --class class_name --function function_name {--may-test {--must-test TEST_second_parameter} {--must-test TEST_second_parameter} ..}
+./focxt --project path/to/project --build path/to/build/directory --file path/to/source_file
 ```
 
-​	其中--must-test需要输入的是TEST宏的第二个参数，开启--may-test后，才能够通过--must-test手动指定测试函数。
+### 分析某个函数或方法
 
-最终结果以*_cxt.json存储在path/to/project目录中。
+```
+./focxt --project path/to/project --build path/to/build/directory --file path/to/source_file --class class_name --function function_name
+```
 
-##### 构建
+分析类的方法时需要传入 class_name 和 function_name；分析函数时不用传入 class_name，只用传入 function_name 就可以。
 
-###### 安装依赖，包括：
+## 构建
 
-```C/C++编译工具，如gcc或clang
-CMake
-Ninja```
+1. 安装依赖，包括：
 
-###### 克隆并进入该项目
+   1. C/C++编译工具，如`gcc`或`clang`
+   2. `CMake`
+   3. `Ninja`
 
-```git clone https://github.com/cppbear/llvm-project.git && cd llvm-project```
+2. 配置 CMake
 
-###### 配置CMake
+   ```
+   cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_DUMP=ON
+   ```
 
-```cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=host -DLLVM_ENABLE_DUMP=ON```
+3. 构建并安装
 
-###### 构建并安装
-
-```cmake --build build --target focxt```
-```cmake --install build --component focxt```
-```cmake --install build --component clang-resource-headers```
+   ```
+   cmake --build build --target focxt
+   cmake --install build --component focxt
+   cmake --install build --component clang-resource-headers
+   ```
